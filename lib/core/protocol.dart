@@ -85,6 +85,9 @@ class HelloMsg extends SyncMessage {
     this.durationMs,
     this.fileMatch,
     this.mediaPath,
+    this.mediaName,
+    this.remux,
+    this.audioPort,
   });
 
   static const kType = 'hello';
@@ -106,31 +109,46 @@ class HelloMsg extends SyncMessage {
   /// Chemin HTTP du média servi par l'hôte (mode 2), ex. `/media/ab12cd`.
   final String? mediaPath;
 
+  /// Nom du film (affiché par la page web du mode 4).
+  final String? mediaName;
+
+  /// Mode 4 : le conteneur doit être réemballé (`/remux/...`) pour le navigateur.
+  final bool? remux;
+
+  /// Mode 3 : port UDP sur lequel l'invité attend l'audio Opus.
+  final int? audioPort;
+
   @override
   String get type => kType;
 
   @override
   Map<String, dynamic> toJson() => {
-        'v': version,
-        'role': role.name,
-        'name': deviceName,
-        'mode': mode.wireName,
-        if (fingerprint != null) 'fingerprint': fingerprint!.toJson(),
-        if (durationMs != null) 'duration': durationMs,
-        if (fileMatch != null) 'fileMatch': fileMatch,
-        if (mediaPath != null) 'media': mediaPath,
-      };
+    'v': version,
+    'role': role.name,
+    'name': deviceName,
+    'mode': mode.wireName,
+    if (fingerprint != null) 'fingerprint': fingerprint!.toJson(),
+    if (durationMs != null) 'duration': durationMs,
+    if (fileMatch != null) 'fileMatch': fileMatch,
+    if (mediaPath != null) 'media': mediaPath,
+    if (mediaName != null) 'mediaName': mediaName,
+    if (remux != null) 'remux': remux,
+    if (audioPort != null) 'audioPort': audioPort,
+  };
 
   static HelloMsg fromJson(Map<String, dynamic> json) => HelloMsg(
-        version: (json['v'] as num).toInt(),
-        role: PeerRole.values.byName(json['role'] as String),
-        deviceName: json['name'] as String? ?? '?',
-        mode: SessionMode.fromWire(json['mode'] as String?),
-        fingerprint: FileFingerprint.fromJson(json['fingerprint']),
-        durationMs: (json['duration'] as num?)?.toInt(),
-        fileMatch: json['fileMatch'] as bool?,
-        mediaPath: json['media'] as String?,
-      );
+    version: (json['v'] as num).toInt(),
+    role: PeerRole.values.byName(json['role'] as String),
+    deviceName: json['name'] as String? ?? '?',
+    mode: SessionMode.fromWire(json['mode'] as String?),
+    fingerprint: FileFingerprint.fromJson(json['fingerprint']),
+    durationMs: (json['duration'] as num?)?.toInt(),
+    fileMatch: json['fileMatch'] as bool?,
+    mediaPath: json['media'] as String?,
+    mediaName: json['mediaName'] as String?,
+    remux: json['remux'] as bool?,
+    audioPort: (json['audioPort'] as num?)?.toInt(),
+  );
 }
 
 /// Ping d'horloge envoyé par l'invité (t0 = horloge invité).
@@ -175,7 +193,7 @@ class CmdMsg extends SyncMessage {
   const CmdMsg.play() : this(CommandAction.play);
   const CmdMsg.pause() : this(CommandAction.pause);
   const CmdMsg.seek(int positionMs)
-      : this(CommandAction.seek, positionMs: positionMs);
+    : this(CommandAction.seek, positionMs: positionMs);
 
   static const kType = 'cmd';
   final CommandAction action;
@@ -188,9 +206,9 @@ class CmdMsg extends SyncMessage {
 
   @override
   Map<String, dynamic> toJson() => {
-        'action': action.name,
-        if (positionMs != null) 'position': positionMs,
-      };
+    'action': action.name,
+    if (positionMs != null) 'position': positionMs,
+  };
 
   static CmdMsg fromJson(Map<String, dynamic> json) {
     final action = CommandAction.values.byName(json['action'] as String);
