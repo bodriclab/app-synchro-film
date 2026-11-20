@@ -2,6 +2,9 @@ package com.bodriclab.app_synchro_film
 
 import android.app.Activity
 import android.content.Intent
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.os.Build
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -63,6 +66,7 @@ class MainActivity : FlutterActivity() {
                     call.argument<Int>("length")!!,
                 )
             }
+            "audioOutput" -> result.success(audioOutput())
             "close" -> {
                 handles.remove(call.argument<Int>("id"))?.close()
                 result.success(null)
@@ -166,6 +170,59 @@ class MainActivity : FlutterActivity() {
         }
         return if (buffer.position() == length) buffer.array()
         else buffer.array().copyOf(buffer.position())
+    }
+
+    /**
+     * Sortie audio active (mode 3) et sa latence : AudioManager.getOutputLatency
+     * (API cachée, inclut souvent la latence Bluetooth A2DP) si accessible,
+     * sinon estimation par type de sortie. Le curseur manuel corrige le reste.
+     */
+    private fun audioOutput(): Map<String, Any?> {
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        val outputs = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        val priority = mutableListOf(
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+            AudioDeviceInfo.TYPE_WIRED_HEADSET,
+            AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER,
+        )
+        if (Build.VERSION.SDK_INT >= 31) {
+            priority.add(1, AudioDeviceInfo.TYPE_BLE_HEADSET)
+            priority.add(2, AudioDeviceInfo.TYPE_BLE_SPEAKER)
+        }
+        val device = priority.firstNotNullOfOrNull { t -> outputs.firstOrNull { it.type == t } }
+        val type = device?.type ?: AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+        val kind = when (type) {
+            AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "bt"
+            AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_WIRED_HEADSET -> "wired"
+            AudioDeviceInfo.TYPE_USB_HEADSET -> "usb"
+            AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+            else -> if (Build.VERSION.SDK_INT >= 31 &&
+                (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER)) "ble" else "other"
+        }
+        val name = device?.productName?.toString()?.takeIf { it.isNotBlank() } ?: when (kind) {
+            "bt" -> "Écouteurs Bluetooth"
+            "ble" -> "Écouteurs Bluetooth LE"
+            "wired" -> "Écouteurs filaires"
+            "usb" -> "Casque USB"
+            else -> "Haut-parleur"
+        }
+
+        var latency: Int? = null
+        var source = "estimate"
+        try {
+            val m = AudioManager::class.java.getMethod("getOutputLatency", Int::class.javaPrimitiveType)
+            val v = m.invoke(am, AudioManager.STREAM_MUSIC) as Int
+            if (v in 1..2000) { latency = v; source = "os" }
+        } catch (_: Throwable) { }
+        if (latency == null) {
+            val frames = am.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER)?.toIntOrNull() ?: 256
+            val rate = am.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE)?.toIntOrNull() ?: 48000
+            val base = 2 * frames * 1000 / rate
+            latency = base + when (kind) { "bt" -> 180; "ble" -> 80; else -> 10 }
+        }
+        return mapOf("id" to "$kind:$name", "label" to name, "latencyMs" to latency, "source" to source)
     }
 
     override fun onDestroy() {
