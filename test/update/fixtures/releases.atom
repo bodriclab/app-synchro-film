@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en-US">
+  <id>tag:github.com,2008:https://github.com/bodriclab/app-synchro-film/releases</id>
+  <link type="text/html" rel="alternate" href="https://github.com/bodriclab/app-synchro-film/releases"/>
+  <link type="application/atom+xml" rel="self" href="https://github.com/bodriclab/app-synchro-film/releases.atom"/>
+  <title>Release notes from app-synchro-film</title>
+  <updated>2026-11-20T12:16:54Z</updated>
+  <entry>
+    <id>tag:github.com,2008:Repository/1465118968/v0.4.0</id>
+    <updated>2026-11-20T12:24:12Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/bodriclab/app-synchro-film/releases/tag/v0.4.0"/>
+    <title>v0.4.0 — mode 5 (audio seul vers navigateur)</title>
+    <content type="html">&lt;p&gt;Pré-version de test &lt;strong&gt;v0.4.0&lt;/strong&gt; — mode 5 : audio seul vers un navigateur.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Nouveautés&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Mode 5 — audio seul vers navigateur&lt;/strong&gt; : l&#39;invité n&#39;installe rien. Il scanne le QR code (&lt;code&gt;http://IP:port/?token=…&lt;/code&gt;), touche « Activer le son » et écoute la bande-son dans ses écouteurs, synchronisée sur l&#39;écran de l&#39;hôte.
+&lt;ul&gt;
+&lt;li&gt;L&#39;hôte décode l&#39;audio (FFmpeg → PCM 48 kHz stéréo, trames de 20 ms horodatées) et l&#39;envoie ~1,2 s en avance sur un WebSocket binaire. C&#39;est le même pipeline que le mode 3, sans Opus.&lt;/li&gt;
+&lt;li&gt;La page programme chaque trame avec Web Audio à l&#39;instant exact (horloge NTP partagée, latence de sortie compensée), avec rattrapage doux à ±1 % de vitesse et masquage des trames perdues.&lt;/li&gt;
+&lt;li&gt;Curseur −500…+500 ms mémorisé dans le navigateur ; lecture, pause et ±10 s depuis la page.&lt;/li&gt;
+&lt;li&gt;Précision mesurée (Chrome headless) : 0–2 ms en régime établi ; jusqu&#39;à ~15 ms au tout premier démarrage, rattrapés en 1–3 s.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;Bouton pour couper le son de l&#39;hôte en modes 3 et 5.&lt;/li&gt;
+&lt;li&gt;Modes 3 et 5 : 600 ms de son pré-envoyées pendant la pause, prêtes dès la reprise.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Installer&lt;/strong&gt; : &lt;code&gt;app-arm64-v8a-release.apk&lt;/code&gt; (téléphones récents). Clé debug, comme les versions précédentes : la mise à jour se fait directement.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Limites&lt;/strong&gt; : pas encore testé sur de vrais téléphones ou iPhone ; iOS peut couper le son écran verrouillé ; &lt;code&gt;outputLatency&lt;/code&gt; est absent sur Safari ou inexact en Bluetooth (d&#39;où le curseur) ; ~1,5 Mb/s par auditeur (PCM non compressé).&lt;/p&gt;</content>
+    <author>
+      <name>bodriclab</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/209633711?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1465118968/v0.3.0</id>
+    <updated>2026-11-20T09:18:29Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/bodriclab/app-synchro-film/releases/tag/v0.3.0"/>
+    <title>v0.3.0 — modes 3 (audio seul) et 4 (navigateur)</title>
+    <content type="html">&lt;p&gt;Pré-version de test &lt;strong&gt;v0.3.0&lt;/strong&gt; — modes 3 et 4.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Nouveautés&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Mode 4 — vers un navigateur&lt;/strong&gt; : le QR code encode &lt;code&gt;http://IP:port/?token=…&lt;/code&gt; ; page web embarquée (aucun CDN, 100 % hors-ligne), synchro JS (horloge NTP médiane de 8, correction douce &lt;code&gt;playbackRate&lt;/code&gt; ±2 %, saut &amp;gt; 1 s). MKV/AVI… &lt;strong&gt;réemballés à la volée&lt;/strong&gt; en MP4 fragmenté (vidéo copiée sans réencodage ; audio AC3/DTS → AAC).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Mode 3 — audio seul&lt;/strong&gt; : l&#39;hôte garde l&#39;image, l&#39;invité écoute dans ses écouteurs. Opus 20 ms en UDP, buffer de gigue, masquage de perte, compensation automatique de la latence de sortie (Android) + curseur &lt;strong&gt;−500…+500 ms mémorisé par sortie&lt;/strong&gt; (Windows : réglage manuel seul).&lt;/li&gt;
+&lt;li&gt;Modes 1 et 2 inchangés.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Installer&lt;/strong&gt; : télécharger &lt;code&gt;app-arm64-v8a-release.apk&lt;/code&gt; (téléphones récents), autoriser les « applis inconnues ». Signé avec la clé debug (comme v0.2.0 : mise à jour directe possible).&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Limites&lt;/strong&gt; : modes 3/4 testés sur PC (localhost, Chrome headless) mais pas encore sur appareils réels ; un seul invité ; codecs vidéo limités à ceux du navigateur en mode 4 ; APK plus lourd (~57 Mo arm64) à cause de FFmpeg.&lt;/p&gt;</content>
+    <author>
+      <name>bodriclab</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/209633711?s=60&amp;v=4"/>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1465118968/v0.2.0</id>
+    <updated>2026-11-20T08:38:58Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/bodriclab/app-synchro-film/releases/tag/v0.2.0"/>
+    <title>v0.2.0 — modes 1 et 2 (test)</title>
+    <content type="html">&lt;p&gt;Pré-version de test &lt;strong&gt;v0.2.0&lt;/strong&gt; — App Synchro Film (Android).&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Nouveautés&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Mode 1 : synchro double fichier (horloge NTP, correction douce, les deux pilotent).&lt;/li&gt;
+&lt;li&gt;Mode 2 : stream app ↔ app — l&#39;hôte sert le film en HTTP (Range, token), l&#39;invité le lit directement, sans réencodage.&lt;/li&gt;
+&lt;li&gt;Android : le film est lu depuis son emplacement d&#39;origine (content://), plus aucune copie dans l&#39;app.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Quel APK ?&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;app-arm64-v8a-release.apk&lt;/code&gt; : presque tous les téléphones récents ← à prendre&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;app-armeabi-v7a-release.apk&lt;/code&gt; : anciens téléphones 32 bits&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;app-x86_64-release.apk&lt;/code&gt; : émulateurs&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;APK signés avec la clé &lt;em&gt;debug&lt;/em&gt; (usage perso / test). Autoriser « Installer des applis inconnues ».&lt;br&gt;
+Modes 3 (audio seul) et 4 (navigateur) : pas encore disponibles.&lt;/p&gt;</content>
+    <author>
+      <name>bodriclab</name>
+    </author>
+    <media:thumbnail height="30" width="30" url="https://avatars.githubusercontent.com/u/209633711?s=60&amp;v=4"/>
+  </entry>
+</feed>
