@@ -84,7 +84,7 @@ Messages JSON sur WebSocket :
 1. L'hôte démarre une session → ouvre les serveurs (WS + HTTP + UDP sur ports fixes configurables) → s'annonce en mDNS → affiche un QR code `synchrofilm://IP:port?token=...`.
 2. L'invité voit la session apparaître, ou scanne le QR (Android) / saisit l'adresse (Windows).
 3. Un **token de session** court protège la connexion (réseau local, pas de chiffrement lourd pour économiser la batterie).
-4. Mode 4 : le QR encode directement `http://IP:port/` pour ouverture dans le navigateur.
+4. Mode 4 : le QR encode directement `http://IP:port/?token=…` pour ouverture dans le navigateur.
 
 ## 6. Économie de batterie
 - Aucun transcodage vidéo ; remux uniquement si nécessaire.
@@ -103,7 +103,6 @@ lib/
   modes/       # double_file, stream, audio_only, browser
   ui/
 web_client/    # page HTML/JS servie en mode 4
-native/        # FFmpeg remux, Opus, latence audio (plugins Android/Windows)
 docs/
 ```
 
@@ -113,9 +112,10 @@ docs/
 - FFmpeg ajoute ~10–20 Mo à l'application.
 - Latence Bluetooth annoncée parfois inexacte → d'où le réglage manuel.
 
-## 9. Étapes suivantes
-1. Squelette Flutter + media_kit (Android + Windows).
-2. Protocole WS + synchro d'horloge + mode 1.
-3. Serveur HTTP Range + mode 2.
-4. Page web + remux FFmpeg + mode 4.
-5. Pipeline Opus/UDP + compensation Bluetooth + mode 3.
+## 9. Étapes
+1. ✅ Squelette Flutter + media_kit (Android + Windows).
+2. ✅ Protocole WS + synchro d'horloge + mode 1.
+3. ✅ Serveur HTTP Range + mode 2.
+4. ✅ Page web + remux FFmpeg (ffmpeg_kit_flutter_new_min, sortie TCP locale) + mode 4.
+5. ✅ Pipeline FFmpeg → PCM → Opus/UDP + compensation de latence + mode 3.
+6. À faire : validation sur appareils réels, latence WASAPI sous Windows, reconnexion auto, service au premier plan Android.
