@@ -5,7 +5,10 @@ import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../net/session/sync_session.dart';
+import '../modes/audio/audio_latency_control.dart';
+import '../net/session/guest_session.dart';
 import '../player/media_kit_engine.dart';
+import '../player/playback_engine.dart';
 import '../player/sync_controller.dart';
 import 'ui_utils.dart';
 
@@ -20,8 +23,8 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late final MediaKitEngine _engine;
-  late final VideoController _video;
+  late final PlaybackEngine _engine;
+  VideoController? _video;
   Timer? _uiTimer;
   bool _showControls = true;
   double? _dragMs;
@@ -31,8 +34,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _engine = _session.engine as MediaKitEngine;
-    _video = VideoController(_engine.player);
+    _engine = _session.engine;
+    final e = _engine;
+    if (e is MediaKitEngine) _video = VideoController(e.player);
     _session.addListener(_refresh);
     // Rafraîchit la barre de progression (4 Hz suffit, économie batterie).
     _uiTimer = Timer.periodic(
@@ -81,12 +85,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              Video(
-                controller: _video,
-                controls: NoVideoControls,
-                // En arrière-plan on continue : sinon le pair dériverait.
-                pauseUponEnteringBackgroundMode: false,
-              ),
+              if (_video != null)
+                Video(
+                  controller: _video!,
+                  controls: NoVideoControls,
+                  // En arrière-plan on continue : sinon le pair dériverait.
+                  pauseUponEnteringBackgroundMode: false,
+                )
+              else
+                _AudioOnlyPanel(session: _session),
               if (_showControls) ..._buildOverlay(context),
             ],
           ),
@@ -96,8 +103,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   List<Widget> _buildOverlay(BuildContext context) {
-    final duration = _engine.durationMs ?? 0;
-    final position = _dragMs?.round() ??
+    final duration =
+        _engine.durationMs ??
+        (_session is GuestSession
+            ? (_session as GuestSession).hostDurationMs
+            : null) ??
+        0;
+    final position =
+        _dragMs?.round() ??
         _session.controller.expectedPositionMs() ??
         _engine.positionMs;
     return [
@@ -147,8 +160,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
               children: [
                 Row(
                   children: [
-                    Text(formatDuration(position),
-                        style: const TextStyle(color: Colors.white)),
+                    Text(
+                      formatDuration(position),
+                      style: const TextStyle(color: Colors.white),
+                    ),
                     Expanded(
                       child: Slider(
                         value: duration > 0
@@ -164,8 +179,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         },
                       ),
                     ),
-                    Text(formatDuration(duration),
-                        style: const TextStyle(color: Colors.white)),
+                    Text(
+                      formatDuration(duration),
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   ],
                 ),
                 Row(
@@ -179,9 +196,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     IconButton(
                       color: Colors.white,
                       iconSize: 48,
-                      icon: Icon(_session.isPlaying
-                          ? Icons.pause_circle
-                          : Icons.play_circle),
+                      icon: Icon(
+                        _session.isPlaying
+                            ? Icons.pause_circle
+                            : Icons.play_circle,
+                      ),
                       onPressed: _session.togglePlay,
                     ),
                     IconButton(
@@ -210,30 +229,27 @@ class _StatusChip extends StatelessWidget {
     final SyncStats stats = session.controller.lastStats;
     final (IconData icon, Color color, String label) = switch (session.status) {
       SessionStatus.connected => (
-          Icons.link,
-          Colors.greenAccent,
-          'Connecté à ${session.peerName ?? '?'}'
-        ),
+        Icons.link,
+        Colors.greenAccent,
+        'Connecté à ${session.peerName ?? '?'}',
+      ),
       SessionStatus.waitingForGuest => (
-          Icons.hourglass_empty,
-          Colors.amber,
-          'En attente de l\'invité'
-        ),
-      SessionStatus.connecting || SessionStatus.starting => (
-          Icons.sync,
-          Colors.amber,
-          'Connexion…'
-        ),
+        Icons.hourglass_empty,
+        Colors.amber,
+        'En attente de l\'invité',
+      ),
+      SessionStatus.connecting ||
+      SessionStatus.starting => (Icons.sync, Colors.amber, 'Connexion…'),
       SessionStatus.disconnected => (
-          Icons.link_off,
-          Colors.redAccent,
-          'Déconnecté'
-        ),
+        Icons.link_off,
+        Colors.redAccent,
+        'Déconnecté',
+      ),
       SessionStatus.error => (
-          Icons.error,
-          Colors.redAccent,
-          session.error ?? 'Erreur'
-        ),
+        Icons.error,
+        Colors.redAccent,
+        session.error ?? 'Erreur',
+      ),
       SessionStatus.idle => (Icons.stop, Colors.grey, 'Inactif'),
     };
     final details = [
@@ -253,6 +269,100 @@ class _StatusChip extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Mode 3, invité : pas de vidéo, réglage de la latence audio.
+class _AudioOnlyPanel extends StatelessWidget {
+  const _AudioOnlyPanel({required this.session});
+
+  final SyncSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = session;
+    final control = s is GuestSession ? s.modeControl : null;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 72, 24, 160),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.headphones, size: 72, color: Colors.white70),
+            const SizedBox(height: 12),
+            const Text(
+              'Audio seul : regardez l\'écran de l\'hôte,\nle son arrive dans vos écouteurs.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white),
+            ),
+            if (control is AudioLatencyControl)
+              ListenableBuilder(
+                listenable: control,
+                builder: (context, _) => _LatencyCard(control: control),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LatencyCard extends StatelessWidget {
+  const _LatencyCard({required this.control});
+
+  final AudioLatencyControl control;
+
+  @override
+  Widget build(BuildContext context) {
+    final out = control.output;
+    final player = control.player;
+    final auto = out.source == 'none'
+        ? 'auto : non disponible (réglage manuel)'
+        : 'auto : ${out.autoLatencyMs} ms${out.source == 'estimate' ? ' (estimée)' : ''}';
+    return Card(
+      margin: const EdgeInsets.only(top: 24),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sortie : ${out.label}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text('Latence $auto'),
+            const SizedBox(height: 12),
+            Text(
+              'Décalage manuel : ${control.manualMs > 0 ? '+' : ''}'
+              '${control.manualMs} ms',
+            ),
+            Slider(
+              min: -500,
+              max: 500,
+              divisions: 100,
+              value: control.manualMs.toDouble(),
+              label: '${control.manualMs} ms',
+              onChanged: (v) => control.setManual(v.round()),
+            ),
+            const Text(
+              'Le son arrive après l\'image → glissez vers la droite.\n'
+              'Réglage mémorisé pour cette sortie audio.',
+              style: TextStyle(fontSize: 12),
+            ),
+            if (player != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Tampon : ${player.buffer.length * 20} ms · '
+                  'pertes : ${player.buffer.missing} · '
+                  'compensation totale : ${control.totalMs} ms',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

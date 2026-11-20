@@ -10,6 +10,8 @@ import '../net/discovery.dart';
 import '../net/session/guest_session.dart';
 import '../platform/media_access.dart';
 import '../player/media_kit_engine.dart';
+import '../player/playback_engine.dart';
+import '../player/virtual_engine.dart';
 import 'player_screen.dart';
 import 'qr_scan_screen.dart';
 import 'ui_utils.dart';
@@ -58,9 +60,8 @@ class _JoinScreenState extends State<JoinScreen> {
   }
 
   Future<void> _scan() async {
-    final value = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const QrScanScreen()),
-    );
+    final value = await Navigator.of(context)
+        .push<String>(MaterialPageRoute(builder: (_) => const QrScanScreen()));
     if (value == null || !mounted) return;
     final ep = SessionEndpoint.tryParse(value);
     if (ep == null) {
@@ -94,8 +95,17 @@ class _JoinScreenState extends State<JoinScreen> {
       showError(context, 'Choisissez d\'abord votre copie du film');
       return;
     }
+    if (!mode.guestUsesApp) {
+      showError(
+        context,
+        'Mode navigateur : ouvrez le lien du QR code dans un navigateur.',
+      );
+      return;
+    }
     setState(() => _connecting = true);
-    final engine = MediaKitEngine();
+    final PlaybackEngine engine = mode.guestShowsVideo
+        ? MediaKitEngine()
+        : VirtualEngine();
     final session = GuestSession(
       engine: engine,
       mode: mode,
@@ -111,9 +121,9 @@ class _JoinScreenState extends State<JoinScreen> {
         await engine.dispose();
         return;
       }
-      await Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => PlayerScreen(session: session),
-      ));
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => PlayerScreen(session: session)),
+      );
     } catch (e) {
       await session.close();
       await engine.dispose();
@@ -148,8 +158,10 @@ class _JoinScreenState extends State<JoinScreen> {
                 ),
                 const Divider(),
               ],
-              Text('Sessions trouvées sur le réseau',
-                  style: theme.textTheme.titleMedium),
+              Text(
+                'Sessions trouvées sur le réseau',
+                style: theme.textTheme.titleMedium,
+              ),
               ValueListenableBuilder<List<DiscoveredSession>>(
                 valueListenable: _browser.sessions,
                 builder: (context, sessions, _) {
@@ -159,23 +171,27 @@ class _JoinScreenState extends State<JoinScreen> {
                         dimension: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                      title: Text(_discoveryError == null
-                          ? 'Recherche… (sinon, scannez le QR code)'
-                          : 'Découverte indisponible : utilisez le QR code'),
+                      title: Text(
+                        _discoveryError == null
+                            ? 'Recherche… (sinon, scannez le QR code)'
+                            : 'Découverte indisponible : utilisez le QR code',
+                      ),
                     );
                   }
-                  return Column(children: [
-                    for (final s in sessions)
-                      ListTile(
-                        leading: const Icon(Icons.tv),
-                        title: Text(s.name),
-                        subtitle: Text(
-                          '${s.endpoint.host}:${s.endpoint.port} · '
-                          '${modeHandlerFor(s.endpoint.mode).title}',
+                  return Column(
+                    children: [
+                      for (final s in sessions)
+                        ListTile(
+                          leading: const Icon(Icons.tv),
+                          title: Text(s.name),
+                          subtitle: Text(
+                            '${s.endpoint.host}:${s.endpoint.port} · '
+                            '${modeHandlerFor(s.endpoint.mode).title}',
+                          ),
+                          onTap: () => _connect(s.endpoint),
                         ),
-                        onTap: () => _connect(s.endpoint),
-                      ),
-                  ]);
+                    ],
+                  );
                 },
               ),
               const Divider(),

@@ -71,9 +71,9 @@ class _HostScreenState extends State<HostScreen> {
     final s = _session!;
     _handedOff = true;
     s.removeListener(_onSessionChanged);
-    Navigator.of(context).pushReplacement(MaterialPageRoute(
-      builder: (_) => PlayerScreen(session: s),
-    ));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => PlayerScreen(session: s)),
+    );
   }
 
   static Future<void> _dispose(HostSession s) async {
@@ -108,19 +108,19 @@ class _HostScreenState extends State<HostScreen> {
   }
 
   Widget _buildPick() => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Choisissez le film à regarder ensemble.'),
-          const SizedBox(height: 16),
-          _starting
-              ? const CircularProgressIndicator()
-              : FilledButton.icon(
-                  icon: const Icon(Icons.movie),
-                  label: const Text('Choisir le fichier'),
-                  onPressed: _pickAndStart,
-                ),
-        ],
-      );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      const Text('Choisissez le film à regarder ensemble.'),
+      const SizedBox(height: 16),
+      _starting
+          ? const CircularProgressIndicator()
+          : FilledButton.icon(
+              icon: const Icon(Icons.movie),
+              label: const Text('Choisir le fichier'),
+              onPressed: _pickAndStart,
+            ),
+    ],
+  );
 
   Widget _buildWaiting(HostSession s) {
     final ip = _ip;
@@ -128,12 +128,13 @@ class _HostScreenState extends State<HostScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(s.media.name,
-            style: Theme.of(context).textTheme.titleMedium),
+        Text(s.media.name, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
         if (endpoint == null)
-          const Text('Aucune adresse Wi-Fi locale trouvée. Activez le Wi-Fi '
-              'ou le partage de connexion.')
+          const Text(
+            'Aucune adresse Wi-Fi locale trouvée. Activez le Wi-Fi '
+            'ou le partage de connexion.',
+          )
         else ...[
           Container(
             color: Colors.white,
@@ -145,8 +146,18 @@ class _HostScreenState extends State<HostScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          SelectableText('${endpoint.host}:${endpoint.port}'
-              '   code : ${endpoint.token}'),
+          if (widget.mode.guestUsesApp)
+            SelectableText(
+              '${endpoint.host}:${endpoint.port}'
+              '   code : ${endpoint.token}',
+            )
+          else ...[
+            const Text(
+              'Scannez avec l\'appareil photo ou ouvrez dans un '
+              'navigateur (même Wi-Fi) :',
+            ),
+            SelectableText(endpoint.toUri().toString()),
+          ],
           if (_ips.length > 1)
             DropdownButton<String>(
               value: ip,
