@@ -10,6 +10,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
+import android.provider.Settings
+import androidx.core.content.FileProvider
+import java.io.File
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -34,6 +37,8 @@ class MainActivity : FlutterActivity() {
     private val channelName = "com.bodriclab.synchrofilm/media"
     private val pickRequestCode = 4747
     private var pendingPick: MethodChannel.Result? = null
+    private var pendingInstallPermission: MethodChannel.Result? = null
+    private val installPermissionRequestCode = 4243
 
     private val io = Executors.newFixedThreadPool(2)
     private val main = Handler(Looper.getMainLooper())
@@ -52,7 +57,53 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler(::onCall)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bodriclab.synchrofilm/update")
+            .setMethodCallHandler(::onUpdateCall)
     }
+
+    /**
+     * Mises à jour : ABI de l'appareil, autorisation « sources inconnues »
+     * (REQUEST_INSTALL_PACKAGES), installation d'un APK téléchargé dans le
+     * cache via FileProvider (installeur système).
+     */
+    private fun onUpdateCall(call: MethodCall, result: MethodChannel.Result) {
+        when (call.method) {
+            "abi" -> result.success(Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a")
+            "canInstall" -> result.success(canInstallPackages())
+            "requestInstallPermission" -> {
+                if (canInstallPackages()) {
+                    result.success(true)
+                    return
+                }
+                pendingInstallPermission?.success(false)
+                pendingInstallPermission = result
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                )
+                @Suppress("DEPRECATION")
+                startActivityForResult(intent, installPermissionRequestCode)
+            }
+            "install" -> {
+                try {
+                    val file = File(call.argument<String>("path")!!)
+                    val uri = FileProvider.getUriForFile(this, "$packageName.updates", file)
+                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.android.package-archive")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(intent)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.error("install_error", e.message ?: e.toString(), null)
+                }
+            }
+            else -> result.notImplemented()
+        }
+    }
+
+    private fun canInstallPackages(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
 
     private fun onCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
@@ -109,6 +160,11 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == installPermissionRequestCode) {
+            pendingInstallPermission?.success(canInstallPackages())
+            pendingInstallPermission = null
+            return
+        }
         if (requestCode != pickRequestCode) return
         val result = pendingPick ?: return
         pendingPick = null

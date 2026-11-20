@@ -16,6 +16,8 @@
         android:maxSdkVersion="32" />
     <!-- Écran allumé / CPU actif pendant la lecture uniquement. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Mise à jour intégrée : installation de l'APK téléchargé depuis les releases GitHub. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- TODO(service hôte) : FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK
          quand l'hôte tournera dans un service au premier plan. -->
     <application
@@ -45,6 +47,16 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- APK de mise à jour (cache/updates) transmis à l'installeur système. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
