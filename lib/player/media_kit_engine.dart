@@ -33,6 +33,9 @@ class MediaKitEngine implements PlaybackEngine {
   @override
   Future<void> setRate(double rate) => player.setRate(rate);
 
+  /// Coupe / rétablit le son local (hôte des modes 3 et 5).
+  Future<void> setMuted(bool muted) => player.setVolume(muted ? 0 : 100);
+
   @override
   int get positionMs => player.state.position.inMilliseconds;
 

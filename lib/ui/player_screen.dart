@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../net/session/sync_session.dart';
+import '../core/session_mode.dart';
 import '../modes/audio/audio_latency_control.dart';
 import '../net/session/guest_session.dart';
 import '../player/media_kit_engine.dart';
@@ -28,6 +30,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Timer? _uiTimer;
   bool _showControls = true;
   double? _dragMs;
+  bool _muted = false;
+
+  /// Hôte d'un mode « son chez l'invité » (3, 5) : il peut couper son propre son.
+  bool get _canMuteHost =>
+      _engine is MediaKitEngine &&
+      _session.isHost &&
+      (_session.sessionMode == SessionMode.audioOnly ||
+          _session.sessionMode == SessionMode.browserAudio);
 
   SyncSession get _session => widget.session;
 
@@ -208,6 +218,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       icon: const Icon(Icons.forward_10),
                       onPressed: () => _session.seekBy(10000),
                     ),
+                    if (_canMuteHost)
+                      IconButton(
+                        color: Colors.white,
+                        tooltip: _muted
+                            ? 'Rétablir le son de cet appareil'
+                            : 'Couper le son de cet appareil',
+                        icon: Icon(_muted ? Icons.volume_off : Icons.volume_up),
+                        onPressed: () {
+                          setState(() => _muted = !_muted);
+                          (_engine as MediaKitEngine).setMuted(_muted);
+                        },
+                      ),
                   ],
                 ),
               ],
