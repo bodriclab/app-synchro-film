@@ -233,10 +233,14 @@ void main() {
       );
     });
 
-    test('pause : attente sans redémarrage', () {
-      final p = AudioPacer();
+    test('pause : pré-envoi limité puis attente, sans redémarrage', () {
+      final p = AudioPacer(leadMs: 1200);
       expect(
         p.decide(nextFrameMs: 5000, expectedMs: 5000, playing: false),
+        PacerAction.send,
+      );
+      expect(
+        p.decide(nextFrameMs: 5620, expectedMs: 5000, playing: false),
         PacerAction.wait,
       );
     });

@@ -17,10 +17,15 @@ enum PacerAction {
 /// attendue (assez pour absorber la gigue Wi-Fi + la latence Bluetooth
 /// compensée par l'invité), sans inonder le réseau.
 class AudioPacer {
-  AudioPacer({this.leadMs = 1200, this.lateToleranceMs = 300});
+  AudioPacer({this.leadMs = 1200, this.lateToleranceMs = 300, int? prerollMs})
+    : prerollMs = prerollMs ?? leadMs ~/ 2;
 
   final int leadMs;
   final int lateToleranceMs;
+
+  /// En pause, on pré-envoie ce qui suit la position (l'invité a déjà le
+  /// son à la reprise, sans rattrapage au démarrage).
+  final int prerollMs;
 
   /// Position (ms, alignée sur 20 ms) où redémarrer le décodage.
   int restartPositionMs = 0;
@@ -42,7 +47,11 @@ class AudioPacer {
       restartPositionMs = alignDown(expectedMs);
       return PacerAction.restart;
     }
-    if (!playing) return PacerAction.wait;
+    if (!playing) {
+      return nextFrameMs <= expectedMs + prerollMs
+          ? PacerAction.send
+          : PacerAction.wait;
+    }
     return nextFrameMs <= expectedMs + leadMs
         ? PacerAction.send
         : PacerAction.wait;
