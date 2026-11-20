@@ -34,15 +34,23 @@ class PeerChannel {
   /// Complété quand la connexion se ferme (quelle qu'en soit la cause).
   Future<void> get done => _closed.future;
 
-  bool get isOpen => !_closed.isCompleted;
+  bool _closing = false;
 
+  bool get isOpen => !_closed.isCompleted && !_closing;
+
+  /// Envoie un message ; ignoré silencieusement si la connexion se ferme.
   void send(SyncMessage msg) {
     if (!isOpen) return;
-    _socket.add(msg.encode());
+    try {
+      _socket.add(msg.encode());
+    } on StateError {
+      _onDone();
+    }
   }
 
   Future<void> close([int code = WebSocketStatus.normalClosure]) async {
     if (!isOpen) return;
+    _closing = true;
     await _socket.close(code);
     _onDone();
   }
