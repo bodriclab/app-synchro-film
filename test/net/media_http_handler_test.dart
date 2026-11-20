@@ -62,12 +62,12 @@ void main() {
   });
 
   Uri url({String id = 'abc', String? token = 'secret'}) => Uri(
-        scheme: 'http',
-        host: '127.0.0.1',
-        port: server.port,
-        path: '/media/$id',
-        queryParameters: token == null ? null : {'token': token},
-      );
+    scheme: 'http',
+    host: '127.0.0.1',
+    port: server.port,
+    path: '/media/$id',
+    queryParameters: token == null ? null : {'token': token},
+  );
 
   Future<(HttpClientResponse, Uint8List)> fetch(
     Uri u, {
@@ -121,14 +121,16 @@ void main() {
     expect(body, isEmpty);
   });
 
-  test('token manquant ou faux : 403 ; mauvais id : 404 ; POST : 405',
-      () async {
-    expect((await fetch(url(token: null))).$1.statusCode, 403);
-    expect((await fetch(url(token: 'faux'))).$1.statusCode, 403);
-    expect((await fetch(url(id: 'zzz'))).$1.statusCode, 404);
-    expect((await fetch(url(), method: 'POST')).$1.statusCode, 405);
-    expect(opener.opened, 0);
-  });
+  test(
+    'token manquant ou faux : 403 ; mauvais id : 404 ; POST : 405',
+    () async {
+      expect((await fetch(url(token: null))).$1.statusCode, 403);
+      expect((await fetch(url(token: 'faux'))).$1.statusCode, 403);
+      expect((await fetch(url(id: 'zzz'))).$1.statusCode, 404);
+      expect((await fetch(url(), method: 'POST')).$1.statusCode, 405);
+      expect(opener.opened, 0);
+    },
+  );
 
   test('chaque requête ferme son accès au média, même interrompue', () async {
     await fetch(url(), range: 'bytes=0-99');

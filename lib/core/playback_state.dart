@@ -13,11 +13,11 @@ class PlaybackState {
   });
 
   const PlaybackState.initial()
-      : playing = false,
-        positionMs = 0,
-        atHostMs = 0,
-        rate = 1.0,
-        seq = 0;
+    : playing = false,
+      positionMs = 0,
+      atHostMs = 0,
+      rate = 1.0,
+      seq = 0;
 
   final bool playing;
   final int positionMs;
@@ -48,30 +48,29 @@ class PlaybackState {
     int? atHostMs,
     double? rate,
     int? seq,
-  }) =>
-      PlaybackState(
-        playing: playing ?? this.playing,
-        positionMs: positionMs ?? this.positionMs,
-        atHostMs: atHostMs ?? this.atHostMs,
-        rate: rate ?? this.rate,
-        seq: seq ?? this.seq,
-      );
+  }) => PlaybackState(
+    playing: playing ?? this.playing,
+    positionMs: positionMs ?? this.positionMs,
+    atHostMs: atHostMs ?? this.atHostMs,
+    rate: rate ?? this.rate,
+    seq: seq ?? this.seq,
+  );
 
   Map<String, dynamic> toJson() => {
-        'playing': playing,
-        'position': positionMs,
-        'rate': rate,
-        'at': atHostMs,
-        'seq': seq,
-      };
+    'playing': playing,
+    'position': positionMs,
+    'rate': rate,
+    'at': atHostMs,
+    'seq': seq,
+  };
 
   static PlaybackState fromJson(Map<String, dynamic> json) => PlaybackState(
-        playing: json['playing'] as bool,
-        positionMs: (json['position'] as num).round(),
-        rate: (json['rate'] as num?)?.toDouble() ?? 1.0,
-        atHostMs: (json['at'] as num).round(),
-        seq: (json['seq'] as num?)?.toInt() ?? 0,
-      );
+    playing: json['playing'] as bool,
+    positionMs: (json['position'] as num).round(),
+    rate: (json['rate'] as num?)?.toDouble() ?? 1.0,
+    atHostMs: (json['at'] as num).round(),
+    seq: (json['seq'] as num?)?.toInt() ?? 0,
+  );
 
   @override
   bool operator ==(Object other) =>

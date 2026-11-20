@@ -17,10 +17,8 @@ class MediaRef {
 
   bool get isContentUri => uri.startsWith('content://');
 
-  factory MediaRef.file(String path) => MediaRef(
-        uri: path,
-        name: path.split(RegExp(r'[\\/]')).last,
-      );
+  factory MediaRef.file(String path) =>
+      MediaRef(uri: path, name: path.split(RegExp(r'[\\/]')).last);
 
   @override
   String toString() => 'MediaRef($name, $uri)';

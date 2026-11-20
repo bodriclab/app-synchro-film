@@ -8,8 +8,8 @@ String localDeviceName() {
   final os = Platform.isAndroid
       ? 'Android'
       : Platform.isWindows
-          ? 'Windows'
-          : Platform.operatingSystem;
+      ? 'Windows'
+      : Platform.operatingSystem;
   return host.isEmpty || host == 'localhost' ? os : '$host ($os)';
 }
 
@@ -25,7 +25,6 @@ String formatDuration(int ms) {
 String fileName(String path) => path.split(RegExp(r'[\\/]')).last;
 
 void showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text('Erreur : $error')),
-  );
+  ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text('Erreur : $error')));
 }

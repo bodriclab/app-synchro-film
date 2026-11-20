@@ -12,13 +12,13 @@ enum CorrectionKind {
 
 class Correction {
   const Correction.none(this.rate)
-      : kind = CorrectionKind.none,
-        seekToMs = null;
+    : kind = CorrectionKind.none,
+      seekToMs = null;
   const Correction.rate(this.rate)
-      : kind = CorrectionKind.rate,
-        seekToMs = null;
+    : kind = CorrectionKind.rate,
+      seekToMs = null;
   const Correction.seek(int this.seekToMs, this.rate)
-      : kind = CorrectionKind.seek;
+    : kind = CorrectionKind.seek;
 
   final CorrectionKind kind;
 
@@ -29,10 +29,10 @@ class Correction {
 
   @override
   String toString() => switch (kind) {
-        CorrectionKind.none => 'Correction.none(rate: $rate)',
-        CorrectionKind.rate => 'Correction.rate($rate)',
-        CorrectionKind.seek => 'Correction.seek($seekToMs)',
-      };
+    CorrectionKind.none => 'Correction.none(rate: $rate)',
+    CorrectionKind.rate => 'Correction.rate($rate)',
+    CorrectionKind.seek => 'Correction.seek($seekToMs)',
+  };
 }
 
 /// Correction douce de l'écart de lecture (cf. docs/ARCHITECTURE.md §4) :

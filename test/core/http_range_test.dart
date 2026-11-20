@@ -5,13 +5,20 @@ void main() {
   const size = 1000;
 
   ByteRange? partial(String? h) => switch (parseRange(h, size)) {
-        PartialContent(:final range) => range,
-        _ => null,
-      };
+    PartialContent(:final range) => range,
+    _ => null,
+  };
 
   test('sans Range ou Range invalide : contenu complet', () {
-    for (final h in [null, '', 'items=0-1', 'bytes=abc', 'bytes=5-2',
-        'bytes=0-1,5-9', 'bytes=-x']) {
+    for (final h in [
+      null,
+      '',
+      'items=0-1',
+      'bytes=abc',
+      'bytes=5-2',
+      'bytes=0-1,5-9',
+      'bytes=-x',
+    ]) {
       expect(parseRange(h, size), isA<FullContent>(), reason: '$h');
     }
   });

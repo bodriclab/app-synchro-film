@@ -51,7 +51,10 @@ class MediaHttpHandler {
         ..set(HttpHeaders.acceptRangesHeader, 'bytes')
         ..contentType = ContentType.parse(mimeTypeFor(media.name))
         ..set(HttpHeaders.cacheControlHeader, 'no-store');
-      final range = parseRange(req.headers.value(HttpHeaders.rangeHeader), size);
+      final range = parseRange(
+        req.headers.value(HttpHeaders.rangeHeader),
+        size,
+      );
       final ByteRange body;
       switch (range) {
         case UnsatisfiableRange():
@@ -60,7 +63,9 @@ class MediaHttpHandler {
         case PartialContent(:final range):
           res.statusCode = HttpStatus.partialContent;
           res.headers.set(
-              HttpHeaders.contentRangeHeader, range.contentRange(size));
+            HttpHeaders.contentRangeHeader,
+            range.contentRange(size),
+          );
           body = range;
         case FullContent():
           res.statusCode = HttpStatus.ok;

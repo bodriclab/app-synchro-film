@@ -15,14 +15,16 @@ class AndroidMedia {
   }
 
   static Future<MediaRef> info(String uri) async {
-    final res =
-        await _channel.invokeMapMethod<String, Object?>('info', {'uri': uri});
+    final res = await _channel.invokeMapMethod<String, Object?>('info', {
+      'uri': uri,
+    });
     return _ref(res!);
   }
 
   static Future<RandomAccessMedia> open(String uri) async {
-    final res =
-        await _channel.invokeMapMethod<String, Object?>('open', {'uri': uri});
+    final res = await _channel.invokeMapMethod<String, Object?>('open', {
+      'uri': uri,
+    });
     return _ContentUriMedia(res!['id']! as int, (res['size']! as num).toInt());
   }
 

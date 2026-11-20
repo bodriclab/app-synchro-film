@@ -6,20 +6,19 @@ import 'playback_engine.dart';
 /// quasi tous formats, décodage matériel activé par défaut.
 class MediaKitEngine implements PlaybackEngine {
   MediaKitEngine()
-      : player = Player(
-          configuration: const PlayerConfiguration(
-            title: 'App Synchro Film',
-            // Cache modéré : suffisant pour un fichier local ou un flux LAN.
-            bufferSize: 32 * 1024 * 1024,
-          ),
-        );
+    : player = Player(
+        configuration: const PlayerConfiguration(
+          title: 'App Synchro Film',
+          // Cache modéré : suffisant pour un fichier local ou un flux LAN.
+          bufferSize: 32 * 1024 * 1024,
+        ),
+      );
 
   /// Exposé pour le widget `Video` de media_kit_video.
   final Player player;
 
   @override
-  Future<void> open(String source) =>
-      player.open(Media(source), play: false);
+  Future<void> open(String source) => player.open(Media(source), play: false);
 
   @override
   Future<void> play() => player.play();

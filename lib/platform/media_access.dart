@@ -6,9 +6,8 @@ import '../core/media_source.dart';
 import 'android_media.dart';
 
 /// Ouvre un média quel que soit son type d'URI (fichier ou content://).
-Future<RandomAccessMedia> openMedia(String uri) => uri.startsWith('content://')
-    ? AndroidMedia.open(uri)
-    : openFileMedia(uri);
+Future<RandomAccessMedia> openMedia(String uri) =>
+    uri.startsWith('content://') ? AndroidMedia.open(uri) : openFileMedia(uri);
 
 /// Choix d'un film local, sans copie :
 /// - Android : sélecteur système, on garde l'URI content:// d'origine ;

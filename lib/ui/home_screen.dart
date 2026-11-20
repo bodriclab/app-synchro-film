@@ -37,7 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       enabled: m.isImplemented,
                       title: Text(m.title),
                       subtitle: Text(
-                        m.isImplemented ? m.subtitle : '${m.subtitle} — bientôt',
+                        m.isImplemented
+                            ? m.subtitle
+                            : '${m.subtitle} — bientôt',
                       ),
                     ),
                 ],
@@ -47,17 +49,17 @@ class _HomeScreenState extends State<HomeScreen> {
             FilledButton.icon(
               icon: const Icon(Icons.cast),
               label: const Text('Créer une session (hôte)'),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => HostScreen(mode: _mode),
-              )),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => HostScreen(mode: _mode)),
+              ),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               icon: const Icon(Icons.login),
               label: const Text('Rejoindre une session'),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => JoinScreen(mode: _mode),
-              )),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => JoinScreen(mode: _mode)),
+              ),
             ),
             const SizedBox(height: 24),
             Text(

@@ -18,7 +18,7 @@ enum SessionMode {
   final String wireName;
 
   static SessionMode fromWire(String? value) => SessionMode.values.firstWhere(
-        (m) => m.wireName == value,
-        orElse: () => SessionMode.doubleFile,
-      );
+    (m) => m.wireName == value,
+    orElse: () => SessionMode.doubleFile,
+  );
 }

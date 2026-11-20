@@ -14,8 +14,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../player/fake_engine.dart';
 
-Future<void> waitFor(bool Function() cond,
-    {Duration timeout = const Duration(seconds: 5)}) async {
+Future<void> waitFor(
+  bool Function() cond, {
+  Duration timeout = const Duration(seconds: 5),
+}) async {
   final sw = Stopwatch()..start();
   while (!cond()) {
     if (sw.elapsed > timeout) throw TimeoutException('condition non atteinte');
@@ -135,8 +137,7 @@ void main() {
 
     tearDown(() => streamHost.close());
 
-    test('l\'invité ouvre l\'URL HTTP de l\'hôte et suit la synchro',
-        () async {
+    test('l\'invité ouvre l\'URL HTTP de l\'hôte et suit la synchro', () async {
       final clock = MonotonicClock();
       final engine = FakeEngine(now: clock.nowMs);
       final guest = GuestSession(

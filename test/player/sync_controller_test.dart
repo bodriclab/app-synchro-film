@@ -28,14 +28,16 @@ void main() {
 
   tearDown(() => ctrl.dispose());
 
-  test('play : se cale sur la position attendue puis lance la lecture',
-      () async {
-    await ctrl.applyState(
-      PlaybackState(playing: true, positionMs: 5000, atHostMs: clock.t - 200),
-    );
-    expect(engine.isPlaying, isTrue);
-    expect(engine.positionMs, 5200);
-  });
+  test(
+    'play : se cale sur la position attendue puis lance la lecture',
+    () async {
+      await ctrl.applyState(
+        PlaybackState(playing: true, positionMs: 5000, atHostMs: clock.t - 200),
+      );
+      expect(engine.isPlaying, isTrue);
+      expect(engine.positionMs, 5200);
+    },
+  );
 
   test('pause : s\'arrête à la position exacte', () async {
     await ctrl.applyState(
@@ -43,7 +45,12 @@ void main() {
     );
     clock.t += 3000;
     await ctrl.applyState(
-      PlaybackState(playing: false, positionMs: 3000, atHostMs: clock.t, seq: 1),
+      PlaybackState(
+        playing: false,
+        positionMs: 3000,
+        atHostMs: clock.t,
+        seq: 1,
+      ),
     );
     expect(engine.isPlaying, isFalse);
     expect(engine.positionMs, 3000);

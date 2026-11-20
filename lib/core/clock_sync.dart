@@ -28,7 +28,7 @@ class ClockSample {
 /// ce qui élimine les pics de latence Wi-Fi.
 class ClockSync {
   ClockSync({this.windowSize = kClockWindow})
-      : assert(windowSize > 0, 'windowSize doit être > 0');
+    : assert(windowSize > 0, 'windowSize doit être > 0');
 
   final int windowSize;
   final List<ClockSample> _samples = <ClockSample>[];

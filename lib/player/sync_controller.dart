@@ -66,7 +66,8 @@ class SyncController {
     final previous = _target;
     if (previous != null && state.seq < previous.seq) return; // obsolète
     _target = state;
-    final changedTimeline = previous == null ||
+    final changedTimeline =
+        previous == null ||
         previous.playing != state.playing ||
         previous.positionMs != state.positionMs ||
         previous.atHostMs != state.atHostMs;
@@ -81,8 +82,10 @@ class SyncController {
     if (isReady != null && !isReady!()) return;
     _busy = true;
     try {
-      final expected =
-          target.positionAt(clock.hostNowMs(), durationMs: engine.durationMs);
+      final expected = target.positionAt(
+        clock.hostNowMs(),
+        durationMs: engine.durationMs,
+      );
 
       if (target.playing != engine.isPlaying) {
         // Changement play/pause : on se cale puis on bascule.

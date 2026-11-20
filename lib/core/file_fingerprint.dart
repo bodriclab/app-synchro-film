@@ -19,8 +19,7 @@ class FileFingerprint {
   static Future<FileFingerprint> compute(
     String path, {
     int chunkSize = defaultChunkSize,
-  }) =>
-      computeWith(path, openFileMedia, chunkSize: chunkSize);
+  }) => computeWith(path, openFileMedia, chunkSize: chunkSize);
 
   /// Calcule l'empreinte de [uri] ouvert par [opener] (fichier ou content://,
   /// sans copie : seuls le premier et le dernier Mo sont lus).

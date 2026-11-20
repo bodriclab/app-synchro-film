@@ -23,12 +23,9 @@ void main() {
         ),
         const PingMsg(12),
         const PongMsg(t0: 1, t1: 2, t2: 3),
-        const StateMsg(PlaybackState(
-          playing: true,
-          positionMs: 1234,
-          atHostMs: 999,
-          seq: 7,
-        )),
+        const StateMsg(
+          PlaybackState(playing: true, positionMs: 1234, atHostMs: 999, seq: 7),
+        ),
         const CmdMsg.seek(5000),
         const CmdMsg.play(),
         const ErrorMsg('busy', 'occupé'),
@@ -41,14 +38,22 @@ void main() {
     });
 
     test('messages invalides', () {
-      expect(() => SyncMessage.decode('pas du json'),
-          throwsA(isA<ProtocolException>()));
-      expect(() => SyncMessage.decode('{"type":"nope"}'),
-          throwsA(isA<ProtocolException>()));
-      expect(() => SyncMessage.decode('{"type":"cmd","action":"seek"}'),
-          throwsA(isA<ProtocolException>()));
-      expect(() => SyncMessage.decode('{"type":"ping"}'),
-          throwsA(isA<ProtocolException>()));
+      expect(
+        () => SyncMessage.decode('pas du json'),
+        throwsA(isA<ProtocolException>()),
+      );
+      expect(
+        () => SyncMessage.decode('{"type":"nope"}'),
+        throwsA(isA<ProtocolException>()),
+      );
+      expect(
+        () => SyncMessage.decode('{"type":"cmd","action":"seek"}'),
+        throwsA(isA<ProtocolException>()),
+      );
+      expect(
+        () => SyncMessage.decode('{"type":"ping"}'),
+        throwsA(isA<ProtocolException>()),
+      );
     });
 
     test('PlaybackState.positionAt', () {
@@ -67,7 +72,10 @@ void main() {
         token: 'abc23xyz',
       );
       final uri = ep.toUri().toString();
-      expect(uri, 'synchrofilm://192.168.43.1:47470?token=abc23xyz&mode=double_file');
+      expect(
+        uri,
+        'synchrofilm://192.168.43.1:47470?token=abc23xyz&mode=double_file',
+      );
       expect(SessionEndpoint.tryParse(uri), ep);
       expect(ep.wsUri.toString(), 'ws://192.168.43.1:47470/ws?token=abc23xyz');
     });
@@ -102,20 +110,28 @@ void main() {
     test('identique pour deux copies, différent si la fin change', () async {
       const chunk = 1024;
       final data = List<int>.generate(10 * chunk, (i) => i % 251);
-      final a = await FileFingerprint.compute(await write('a', data),
-          chunkSize: chunk);
-      final b = await FileFingerprint.compute(await write('b', data),
-          chunkSize: chunk);
+      final a = await FileFingerprint.compute(
+        await write('a', data),
+        chunkSize: chunk,
+      );
+      final b = await FileFingerprint.compute(
+        await write('b', data),
+        chunkSize: chunk,
+      );
       expect(a.matches(b), isTrue);
 
       final tail = List<int>.of(data)..[data.length - 1] ^= 0xff;
-      final c = await FileFingerprint.compute(await write('c', tail),
-          chunkSize: chunk);
+      final c = await FileFingerprint.compute(
+        await write('c', tail),
+        chunkSize: chunk,
+      );
       expect(a.matches(c), isFalse);
       // Le milieu n'est pas haché (compromis volontaire).
       final mid = List<int>.of(data)..[5 * chunk] ^= 0xff;
-      final d = await FileFingerprint.compute(await write('d', mid),
-          chunkSize: chunk);
+      final d = await FileFingerprint.compute(
+        await write('d', mid),
+        chunkSize: chunk,
+      );
       expect(a.matches(d), isTrue);
     });
 

@@ -36,18 +36,20 @@ class NsdSessionAnnouncer implements SessionAnnouncer {
     required SessionMode mode,
   }) async {
     await stop();
-    _registration = await nsd.register(nsd.Service(
-      name: name,
-      type: kServiceType,
-      port: port,
-      txt: {
-        'v': _utf8('$kProtocolVersion'),
-        'mode': _utf8(mode.wireName),
-        // Le token voyage en clair sur le LAN : acceptable sur un hotspot
-        // privé ; voir TODO (appairage par code) dans le README.
-        'token': _utf8(token),
-      },
-    ));
+    _registration = await nsd.register(
+      nsd.Service(
+        name: name,
+        type: kServiceType,
+        port: port,
+        txt: {
+          'v': _utf8('$kProtocolVersion'),
+          'mode': _utf8(mode.wireName),
+          // Le token voyage en clair sur le LAN : acceptable sur un hotspot
+          // privé ; voir TODO (appairage par code) dans le README.
+          'token': _utf8(token),
+        },
+      ),
+    );
   }
 
   @override
@@ -73,8 +75,9 @@ class DiscoveredSession {
 
 /// Écoute les sessions annoncées. [sessions] est mis à jour en continu.
 class SessionBrowser {
-  final ValueNotifier<List<DiscoveredSession>> sessions =
-      ValueNotifier(const []);
+  final ValueNotifier<List<DiscoveredSession>> sessions = ValueNotifier(
+    const [],
+  );
   nsd.Discovery? _discovery;
 
   Future<void> start() async {
@@ -84,9 +87,10 @@ class SessionBrowser {
       ipLookupType: nsd.IpLookupType.v4,
     );
     _discovery = discovery;
-    discovery.addListener(() => sessions.value = [
-          for (final s in discovery.services) ?_toSession(s),
-        ]);
+    discovery.addListener(
+      () =>
+          sessions.value = [for (final s in discovery.services) ?_toSession(s)],
+    );
   }
 
   Future<void> stop() async {

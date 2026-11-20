@@ -6,10 +6,11 @@ import 'protocol.dart';
 /// produit le nouvel état de référence à rediffuser.
 class PlaybackArbiter {
   PlaybackArbiter(this._hostNowMs, {PlaybackState? initial})
-      : _state = initial ?? const PlaybackState.initial();
+    : _state = initial ?? const PlaybackState.initial();
 
   final int Function() _hostNowMs;
   PlaybackState _state;
+
   /// Durée du média (sert à borner les seek et la position).
   int? durationMs;
 

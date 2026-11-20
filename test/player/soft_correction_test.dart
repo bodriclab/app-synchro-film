@@ -6,11 +6,11 @@ void main() {
   setUp(() => c = SoftCorrector());
 
   Correction run(int drift, {bool playing = true, int now = 0}) => c.update(
-        driftMs: drift,
-        targetPositionMs: 10000,
-        playing: playing,
-        nowMs: now,
-      );
+    driftMs: drift,
+    targetPositionMs: 10000,
+    playing: playing,
+    nowMs: now,
+  );
 
   group('SoftCorrector', () {
     test('< 40 ms : rien', () {

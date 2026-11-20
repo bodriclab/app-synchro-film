@@ -40,7 +40,5 @@ bool isPrivateIPv4(String ip) {
   final parts = ip.split('.').map(int.tryParse).toList();
   if (parts.length != 4 || parts.any((p) => p == null)) return false;
   final a = parts[0]!, b = parts[1]!;
-  return a == 10 ||
-      (a == 172 && b >= 16 && b <= 31) ||
-      (a == 192 && b == 168);
+  return a == 10 || (a == 172 && b >= 16 && b <= 31) || (a == 192 && b == 168);
 }

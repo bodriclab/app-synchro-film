@@ -84,10 +84,12 @@ class HostServer {
       return;
     }
     final socket = await WebSocketTransformer.upgrade(req);
-    _guests.add(PeerChannel(
-      socket,
-      remoteAddress: req.connectionInfo?.remoteAddress.address,
-    ));
+    _guests.add(
+      PeerChannel(
+        socket,
+        remoteAddress: req.connectionInfo?.remoteAddress.address,
+      ),
+    );
   }
 
   Future<void> stop() async {
