@@ -14,14 +14,22 @@ Architecture détaillée : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Installation (Android)
 
-Les APK sont publiés dans les **[Releases GitHub](https://github.com/bodriclab/app-synchro-film/releases)** (dépôt privé : être connecté à GitHub).
+Les APK sont publiés dans les **[Releases GitHub](https://github.com/bodriclab/app-synchro-film/releases)** (dépôt public).
 
-1. Ouvrir la dernière release (ex. `v0.4.0`, pré-version de test) sur le téléphone.
+1. Ouvrir la dernière release (ex. `v0.5.0`) sur le téléphone.
 2. Télécharger **`app-arm64-v8a-release.apk`** (presque tous les téléphones récents ; `armeabi-v7a` pour les très anciens, `x86_64` pour les émulateurs).
 3. Ouvrir le fichier et autoriser « Installer des applis inconnues » pour le navigateur / le gestionnaire de fichiers.
 
 Les APK de test sont signés avec la clé *debug* : pour passer à une future version signée avec une vraie clé, il faudra désinstaller l'app d'abord.
 Windows : pas encore de binaire publié, voir *Construire et lancer*.
+
+### Mises à jour intégrées (v0.5.0+)
+
+Au démarrage (au plus une fois par jour) et via *À propos → Vérifier les mises à jour*, l'app interroge les releases GitHub (`GET api.github.com/repos/bodriclab/app-synchro-film/releases`, pré-versions comprises ; repli sur le flux `releases.atom` si l'API anonyme est limitée). Si une version plus récente existe, une fenêtre affiche la version et les notes : **Mettre à jour** / **Plus tard** / **Ignorer cette version**.
+- **Android** : téléchargement de l'APK de l'ABI de l'appareil (barre de progression) dans le cache de l'app, puis installeur système (FileProvider). Au premier usage, Android demande d'autoriser l'app à « installer des applis inconnues ».
+- **Windows** : ouvre la page de la release (ou le binaire Windows s'il y en a un) dans le navigateur.
+- **Hors-ligne** : rien ne s'affiche, rien ne bloque.
+- ⚠️ Une mise à jour ne s'installe que par-dessus une app **signée avec la même clé** : les APK publiés sont signés avec la clé de build de l'auteur (sauvegardée hors du dépôt). Un APK compilé soi-même avec une autre clé impose de désinstaller d'abord.
 
 ## Utilisation (mode 1)
 
@@ -113,6 +121,12 @@ test/       tests unitaires + intégration hôte/invité sur localhost (modes 1�
 - **État** : l'hôte diffuse `state{playing, position, rate, at}` (ancré sur son horloge) à chaque changement et toutes les 2 s.
 - **Commandes** : chaque pair envoie `cmd{play|pause|seek}` ; l'hôte les applique dans l'ordre reçu (la dernière gagne) et rediffuse `state`.
 - **Correction douce** (des deux côtés, sur la même timeline) : écart < 40 ms → rien ; 40 ms–1 s → vitesse ±2 % jusqu'à ≤ 15 ms (hystérésis) ; > 1 s → seek (puis 1,5 s sans correction).
+
+## Licence
+
+Code sous licence **MIT** (`LICENSE`). Les binaires embarquent FFmpeg et libmpv sous **LGPL** (bibliothèques dynamiques non modifiées) et d'autres composants permissifs : voir [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+Icône : `assets/icon/*.svg` (dessinée en code), rendue en PNG puis déclinée par `flutter_launcher_icons` (icône adaptative Android, `.ico` Windows).
 
 ## Limites / TODO
 
