@@ -1,5 +1,6 @@
 import '../core/session_mode.dart';
 import 'audio_only_mode.dart';
+import 'browser_audio_mode.dart';
 import 'browser_mode.dart';
 import 'double_file_mode.dart';
 import 'mode_handler.dart';
@@ -11,6 +12,7 @@ const List<ModeHandler> kAllModes = [
   StreamMode(),
   AudioOnlyMode(),
   BrowserMode(),
+  BrowserAudioMode(),
 ];
 
 ModeHandler modeHandlerFor(SessionMode mode) =>

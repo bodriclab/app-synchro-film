@@ -3,34 +3,48 @@ import 'dart:io';
 /// Charge un fichier de la page web embarquée (`web_client/…`).
 typedef AssetLoader = Future<String> Function(String name);
 
-/// Mode 4 : sert la page web légère (HTML/JS embarqués, aucune ressource
+/// Modes 4 et 5 : sert la page web légère (HTML/JS embarqués, aucune ressource
 /// externe : fonctionne 100 % hors-ligne).
 ///
-/// `/` exige le token (sinon page d'aide) ; `/app.js` et `/app.css` sont
-/// publics (aucun secret dedans).
+/// `/` exige le token (sinon page d'aide) ; les scripts et feuilles de style
+/// sont publics (aucun secret dedans).
 class WebClientHandler {
-  WebClientHandler({required this.token, required this.loadAsset});
+  WebClientHandler({
+    required this.token,
+    required this.loadAsset,
+    this.page = 'index.html',
+  });
 
   final String token;
   final AssetLoader loadAsset;
+
+  /// Page servie sur `/` : `index.html` (mode 4) ou `audio.html` (mode 5).
+  final String page;
   final Map<String, String> _cache = {};
 
-  static const Map<String, String> _files = {
-    '/': 'index.html',
-    '/index.html': 'index.html',
-    '/app.js': 'app.js',
-    '/app.css': 'app.css',
-  };
+  static const List<String> _public = [
+    'app.js',
+    'app.css',
+    'clock.js',
+    'audio.js',
+    'audio.css',
+  ];
+
+  String? _fileFor(String path) {
+    if (path == '/' || path == '/$page') return page;
+    final name = path.substring(1);
+    return _public.contains(name) ? name : null;
+  }
 
   Future<void> call(HttpRequest req) async {
     final res = req.response;
-    final file = _files[req.uri.path];
+    final file = _fileFor(req.uri.path);
     if (file == null) {
       res.statusCode = HttpStatus.notFound;
       await res.close();
       return;
     }
-    if (file == 'index.html' && req.uri.queryParameters['token'] != token) {
+    if (file == page && req.uri.queryParameters['token'] != token) {
       res.statusCode = HttpStatus.forbidden;
       res.headers.contentType = ContentType.html;
       res.write(
