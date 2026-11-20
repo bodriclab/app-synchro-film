@@ -1,6 +1,26 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Réseau local : WebSocket de contrôle, futur HTTP (modes 2/4) et UDP (mode 3). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- mDNS (_synchrofilm._tcp) : réception des paquets multicast. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- Scan du QR code de l'hôte. La caméra reste optionnelle (saisie manuelle possible). -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Lecture des films locaux. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Écran allumé / CPU actif pendant la lecture uniquement. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- TODO(service hôte) : FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK
+         quand l'hôte tournera dans un service au premier plan. -->
     <application
-        android:label="app_synchro_film"
+        android:label="App Synchro Film"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
