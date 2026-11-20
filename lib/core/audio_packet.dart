@@ -9,7 +9,10 @@ const int kAudioSamplesPerFrame = kAudioSampleRate * kAudioFrameMs ~/ 1000;
 /// Octets PCM s16le d'une trame (960 échantillons × 2 canaux × 2 octets).
 const int kAudioFrameBytes = kAudioSamplesPerFrame * kAudioChannels * 2;
 
-/// Paquet UDP du mode 3.
+/// Drapeau : charge utile PCM s16le brute (mode 5) au lieu d'Opus (mode 3).
+const int kAudioFlagPcm = 0x01;
+
+/// Paquet audio des modes 3 (UDP, Opus) et 5 (WebSocket, PCM).
 ///
 /// En-tête (16 octets, big-endian) :
 /// `'S' 'F'` | version (1) | flags (1) | epoch (u16) | réservé (u16) |

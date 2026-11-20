@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import '../core/audio_packet.dart';
+import 'audio_sink.dart';
 
 /// Émetteur UDP de l'hôte (mode 3).
-class AudioSender {
+class AudioSender implements AudioSink {
   AudioSender._(this._socket);
 
   static Future<AudioSender> bind() async =>
@@ -25,8 +26,10 @@ class AudioSender {
     _port = null;
   }
 
+  @override
   bool get hasTarget => _target != null;
 
+  @override
   void send(AudioPacket p) {
     final t = _target;
     if (t == null) return;

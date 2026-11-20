@@ -7,15 +7,21 @@ import '../../core/audio_packet.dart';
 import '../../core/media_source.dart';
 import '../../core/playback_state.dart';
 import '../../core/remux.dart';
-import '../../net/audio_udp.dart';
+import '../../net/audio_sink.dart';
 import '../../platform/ffmpeg_runner.dart';
 
-/// Encode une trame PCM (960 × 2 échantillons s16) en paquet Opus.
+/// Encode une trame PCM (960 × 2 échantillons s16) : Opus (mode 3) ou PCM
+/// brut (mode 5, voir [pcmFrame]).
 typedef FrameEncoder = Uint8List Function(Int16List pcm);
 
-/// Hôte du mode 3 : décode la piste audio du film avec FFmpeg (PCM 48 kHz
+/// « Encodeur » du mode 5 : PCM s16le tel quel.
+Uint8List pcmFrame(Int16List pcm) =>
+    pcm.buffer.asUint8List(pcm.offsetInBytes, pcm.lengthInBytes);
+
+/// Hôte des modes 3 et 5 : décode la piste audio du film avec FFmpeg (PCM 48 kHz
 /// stéréo, à partir de la position de la timeline), l'encode en Opus par
-/// trames de 20 ms et l'envoie en UDP à l'invité, avec ~1,2 s d'avance.
+/// trames de 20 ms (ou les laisse en PCM) et les envoie à l'invité (UDP ou
+/// WebSocket), avec ~1,2 s d'avance.
 ///
 /// FFmpeg est rythmé par le contrôle de flux TCP (abonnement mis en pause
 /// quand assez de trames attendent) : pas de décodage inutile.
@@ -25,6 +31,7 @@ class AudioHostStreamer {
     required this.media,
     required this.sender,
     required this.encode,
+    this.flags = 0,
     required this.hostNowMs,
     required this.state,
     this.durationMs,
@@ -34,8 +41,11 @@ class AudioHostStreamer {
 
   final FfmpegRunner ffmpeg;
   final MediaRef media;
-  final AudioSender sender;
+  final AudioSink sender;
   final FrameEncoder encode;
+
+  /// Drapeaux des paquets (ex. [kAudioFlagPcm]).
+  final int flags;
   final int Function() hostNowMs;
   final PlaybackState Function() state;
   final int? Function()? durationMs;
@@ -61,6 +71,13 @@ class AudioHostStreamer {
   int get packetsSent => _seq;
 
   void start() => _timer ??= Timer.periodic(tick, (_) => _pump());
+
+  /// Repart de la position courante (nouvel auditeur : pas d'attente de
+  /// l'avance déjà envoyée aux autres).
+  void resync() {
+    if (_starting) return;
+    _nextPos = null;
+  }
 
   Future<void> _pump() async {
     if (_starting) return;
@@ -98,6 +115,7 @@ class AudioHostStreamer {
           sender.send(
             AudioPacket(
               epoch: _epoch,
+              flags: flags,
               seq: _seq++,
               positionMs: _nextPos!,
               payload: encode(pcm),

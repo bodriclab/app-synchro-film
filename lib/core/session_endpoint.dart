@@ -18,9 +18,9 @@ class SessionEndpoint {
   final String token;
   final SessionMode mode;
 
-  /// URI à encoder dans le QR code. En mode 4 (navigateur), c'est
+  /// URI à encoder dans le QR code. En modes 4 et 5 (navigateur), c'est
   /// directement l'adresse de la page web : `http://IP:port/?token=…`.
-  Uri toUri() => mode == SessionMode.browser
+  Uri toUri() => mode.usesBrowser
       ? Uri(
           scheme: 'http',
           host: host,

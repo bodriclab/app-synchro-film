@@ -1,4 +1,4 @@
-/// Les 4 modes d'utilisation de l'application.
+/// Les 5 modes d'utilisation de l'application.
 enum SessionMode {
   /// Mode 1 : chaque appareil lit son propre fichier, seules les commandes transitent.
   doubleFile('double_file'),
@@ -10,9 +10,17 @@ enum SessionMode {
   audioOnly('audio_only'),
 
   /// Mode 4 : l'invité regarde depuis un navigateur web.
-  browser('browser');
+  browser('browser'),
+
+  /// Mode 5 : l'invité écoute seulement le son dans son navigateur
+  /// (PCM sur WebSocket, Web Audio).
+  browserAudio('browser_audio');
 
   const SessionMode(this.wireName);
+
+  /// L'invité utilise un navigateur (pas l'app) : le QR code encode
+  /// directement l'adresse http de la page.
+  bool get usesBrowser => this == browser || this == browserAudio;
 
   /// Nom utilisé dans le protocole, le QR code et le TXT mDNS.
   final String wireName;
