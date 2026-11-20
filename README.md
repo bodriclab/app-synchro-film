@@ -8,6 +8,7 @@ Application légère **Android + Windows** (Flutter + media_kit) pour regarder u
 | 2. Stream app ↔ app (HTTP progressif) | ✅ implémenté |
 | 3. Audio seul vers écouteurs (Opus/UDP) | ✅ implémenté (v0.3.0, à valider sur appareils) |
 | 4. Stream vers navigateur (+ remux MKV → MP4) | ✅ implémenté (v0.3.0) |
+| 5. Audio seul vers navigateur (Web Audio) | ✅ implémenté (v0.4.0) |
 
 Architecture détaillée : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -15,7 +16,7 @@ Architecture détaillée : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Les APK sont publiés dans les **[Releases GitHub](https://github.com/bodriclab/app-synchro-film/releases)** (dépôt privé : être connecté à GitHub).
 
-1. Ouvrir la dernière release (ex. `v0.3.0`, pré-version de test) sur le téléphone.
+1. Ouvrir la dernière release (ex. `v0.4.0`, pré-version de test) sur le téléphone.
 2. Télécharger **`app-arm64-v8a-release.apk`** (presque tous les téléphones récents ; `armeabi-v7a` pour les très anciens, `x86_64` pour les émulateurs).
 3. Ouvrir le fichier et autoriser « Installer des applis inconnues » pour le navigateur / le gestionnaire de fichiers.
 
@@ -52,6 +53,16 @@ L'invité n'installe rien : n'importe quel navigateur (TV, tablette, PC, iPhone�
 La page (HTML/JS/CSS embarqués dans l'app, **aucun CDN**, 100 % hors-ligne) refait la synchro en JS : horloge NTP (médiane de 8 via WebSocket), correction douce par `playbackRate` (±2 %), saut au-delà de 1 s, avec compensation apprise du délai de démarrage/saut.
 **Conteneurs non lisibles** (MKV, AVI…) : l'hôte **réemballe à la volée** en MP4 fragmenté avec FFmpeg (`-c:v copy`, aucun réencodage vidéo ; audio AC3/DTS… converti en AAC si le navigateur ne le lit pas). Intégration : [`ffmpeg_kit_flutter_new_min`](https://pub.dev/packages/ffmpeg_kit_flutter_new_min) (Android + Windows), sortie via socket TCP locale. Le flux réemballé n'est pas « seekable » : un saut relance la conversion à partir de l'image clé la plus proche (image figée quelques instants).
 
+## Utilisation (mode 5 — audio seul vers un navigateur)
+
+Un seul écran (l'hôte) ; l'invité écoute la bande-son dans **ses écouteurs**, depuis **son navigateur**, sans installer l'app (iPhone compris).
+1. **Hôte** : *Audio seul vers navigateur* → choisir le film → QR code (lien `http://IP:port/?token=…` aussi affiché). Bouton 🔈 dans le lecteur pour couper le son de l'hôte si besoin.
+2. **Invité** : scanner le QR avec l'appareil photo → toucher **« Activer le son »** (obligatoire sur iOS).
+3. Si le son est décalé (Bluetooth), ajuster le curseur **−500…+500 ms** (mémorisé par le navigateur). La page affiche lecture/pause, la position et l'état de connexion, et permet lecture/pause/±10 s.
+
+Technique : même pipeline que le mode 3 côté hôte (FFmpeg → PCM 48 kHz stéréo, trames de 20 ms horodatées, ~1,2 s d'avance) mais envoyé **sans compression sur un WebSocket binaire** (`/pcm`, ~1,5 Mb/s) : la page étant servie en http sur le réseau local (pas de contexte sécurisé), ni AudioWorklet ni WebCodecs (Opus) ne sont disponibles. Chaque trame est programmée avec Web Audio (`AudioBufferSourceNode.start(t)`) à l'instant exact calculé avec l'horloge NTP partagée, en compensant `baseLatency + outputLatency` et le réglage manuel ; trames jointives, rattrapage doux à ±1 % de vitesse, masquage des trames perdues.
+**Précision mesurée** (Chrome headless, localhost) : écart entre le son programmé et la timeline de l'hôte ≈ **0–2 ms** en régime établi (p50 < 1 ms), y compris après un saut ; jusqu'à ~15 ms pendant les 1–3 premières secondes de la toute première lecture, rattrapés en douceur. Hors latence réelle du casque Bluetooth (curseur).
+
 Raccourcis clavier (Windows) : `Espace` lecture/pause, `←`/`→` ±10 s.
 
 ## Construire et lancer
@@ -61,7 +72,7 @@ Prérequis : [Flutter](https://docs.flutter.dev/get-started/install) stable (tes
 ```bash
 flutter pub get
 flutter analyze
-flutter test                     # logique + sessions + modes 3/4 (FFmpeg et libopus requis pour certains tests,
+flutter test                     # logique + sessions + modes 3/4/5 (FFmpeg et libopus requis pour certains tests,
                                  # Chrome pour le test navigateur de bout en bout ; sinon ignorés)
 
 # Android (SDK Android + JDK 17)
@@ -92,7 +103,7 @@ lib/
   platform/ médias (fichiers / content:// Android), FFmpeg (ffmpeg-kit ou exécutable), Opus,
             sortie PCM, latence de sortie (MethodChannel Kotlin)
   ui/       accueil, hôte (QR), invité (mDNS/QR/saisie), lecteur
-web_client/ page du mode 4 (index.html, app.js, app.css), embarquée comme asset
+web_client/ pages des modes 4 (index.html, app.js) et 5 (audio.html, audio.js), horloge commune clock.js — assets embarqués
 test/       tests unitaires + intégration hôte/invité sur localhost (modes 1–4) + Chrome headless
 ```
 
@@ -105,7 +116,8 @@ test/       tests unitaires + intégration hôte/invité sur localhost (modes 1�
 
 ## Limites / TODO
 
-- **Modes 3 et 4 : testés sur PC (localhost, Chrome headless, FFmpeg/libopus système), pas encore sur de vrais téléphones/TV.**
+- **Mode 5** : le son passe en PCM non compressé (~1,5 Mb/s par auditeur, sans souci en Wi-Fi local). `outputLatency` n'est pas fourni par tous les navigateurs (Safari) ni toujours exact en Bluetooth → curseur. Sur iOS, l'audio peut s'arrêter quand l'écran se verrouille (laisser la page ouverte) ; le bouton « Activer le son » est requis à chaque ouverture. Au tout premier démarrage, un léger écart (~10–20 ms) est rattrapé en 1–3 s.
+- **Modes 3, 4 et 5 : testés sur PC (localhost, Chrome headless, FFmpeg/libopus système), pas encore sur de vrais téléphones/TV.**
 - **Mode 3** : un seul invité ; latence auto sous Android uniquement (API cachée `AudioManager.getOutputLatency`, sinon estimation par type de sortie) ; **sous Windows, réglage manuel seul** (WASAPI non branché). La précision Bluetooth réelle dépend du casque : ajuster le curseur. Le son de l'hôte n'est pas coupé.
 - **Mode 4** : codecs limités à ceux du navigateur (H.264/AAC partout ; HEVC/AV1 selon l'appareil — pas de réencodage vidéo). En flux réemballé (MKV…), un saut recharge le flux (image figée ~1–3 s) et l'écart initial est résorbé par la vitesse ±2 % (quelques secondes). Un seul navigateur à la fois. Safari iOS : lecture automatique souvent bloquée → bouton *Activer la lecture*.
 - **Taille** : FFmpeg (ffmpeg-kit « min », en plus du FFmpeg interne de libmpv) et libopus ajoutent ~19 Mo : APK arm64 ≈ 57 Mo (38 Mo en v0.2.0).
