@@ -1,3 +1,5 @@
+import '../core/media_source.dart';
+import '../core/protocol.dart';
 import '../core/session_endpoint.dart';
 import '../core/session_mode.dart';
 import '../net/host_server.dart';
@@ -27,20 +29,22 @@ class DoubleFileMode extends ModeHandler {
   bool get guestNeedsLocalFile => true;
 
   @override
-  Future<String> attachHost({
+  Future<HostAttachment> attachHost({
     required HostServer server,
-    required String filePath,
+    required MediaRef media,
+    required MediaOpener opener,
   }) async =>
-      filePath;
+      HostAttachment(localSource: media.uri);
 
   @override
   Future<String> resolveGuestSource({
     required SessionEndpoint endpoint,
-    String? localFilePath,
+    required HelloMsg hostHello,
+    MediaRef? localMedia,
   }) async {
-    if (localFilePath == null) {
+    if (localMedia == null) {
       throw StateError('Le mode double fichier exige un fichier local.');
     }
-    return localFilePath;
+    return localMedia.uri;
   }
 }

@@ -6,6 +6,7 @@ import '../net/discovery.dart';
 import '../net/network_info.dart';
 import '../net/session/host_session.dart';
 import '../net/session/sync_session.dart';
+import '../platform/media_access.dart';
 import '../player/media_kit_engine.dart';
 import 'player_screen.dart';
 import 'ui_utils.dart';
@@ -28,13 +29,13 @@ class _HostScreenState extends State<HostScreen> {
   bool _handedOff = false;
 
   Future<void> _pickAndStart() async {
-    final path = await pickMediaFile();
-    if (path == null || !mounted) return;
+    final media = await pickMedia();
+    if (media == null || !mounted) return;
     setState(() => _starting = true);
     final session = HostSession(
       engine: MediaKitEngine(),
       mode: widget.mode,
-      filePath: path,
+      media: media,
       deviceName: localDeviceName(),
       announcer: NsdSessionAnnouncer(),
     );
@@ -127,7 +128,7 @@ class _HostScreenState extends State<HostScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(fileName(s.filePath),
+        Text(s.media.name,
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
         if (endpoint == null)

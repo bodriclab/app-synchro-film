@@ -84,6 +84,7 @@ class HelloMsg extends SyncMessage {
     this.fingerprint,
     this.durationMs,
     this.fileMatch,
+    this.mediaPath,
   });
 
   static const kType = 'hello';
@@ -102,6 +103,9 @@ class HelloMsg extends SyncMessage {
   /// Renseigné par l'hôte dans sa réponse : les empreintes correspondent-elles ?
   final bool? fileMatch;
 
+  /// Chemin HTTP du média servi par l'hôte (mode 2), ex. `/media/ab12cd`.
+  final String? mediaPath;
+
   @override
   String get type => kType;
 
@@ -114,6 +118,7 @@ class HelloMsg extends SyncMessage {
         if (fingerprint != null) 'fingerprint': fingerprint!.toJson(),
         if (durationMs != null) 'duration': durationMs,
         if (fileMatch != null) 'fileMatch': fileMatch,
+        if (mediaPath != null) 'media': mediaPath,
       };
 
   static HelloMsg fromJson(Map<String, dynamic> json) => HelloMsg(
@@ -124,6 +129,7 @@ class HelloMsg extends SyncMessage {
         fingerprint: FileFingerprint.fromJson(json['fingerprint']),
         durationMs: (json['duration'] as num?)?.toInt(),
         fileMatch: json['fileMatch'] as bool?,
+        mediaPath: json['media'] as String?,
       );
 }
 

@@ -3,9 +3,11 @@ import 'dart:async';
 import '../../core/clock_sync.dart';
 import '../../core/constants.dart';
 import '../../core/file_fingerprint.dart';
+import '../../core/media_source.dart';
 import '../../core/monotonic_clock.dart';
 import '../../core/protocol.dart';
 import '../../core/session_endpoint.dart';
+import '../../platform/media_access.dart';
 import '../../player/sync_controller.dart';
 import '../peer_channel.dart';
 import 'sync_session.dart';
@@ -18,22 +20,29 @@ class GuestSession extends SyncSession {
     required super.engine,
     required super.mode,
     required this.endpoint,
-    this.localFilePath,
+    this.localMedia,
+    MediaOpener? opener,
+    this.helloTimeout = const Duration(seconds: 5),
     this.deviceName = 'Invité',
     MonotonicClock? clock,
     this.minClockSamples = 3,
-  })  : clock = clock ?? MonotonicClock(),
+  })  : opener = opener ?? openMedia,
+        clock = clock ?? MonotonicClock(),
         clockSync = ClockSync() {
     controller = SyncController(
       engine: engine,
       clock: GuestSharedClock(this.clock, clockSync),
       localNowMs: this.clock.nowMs,
-      isReady: () => clockSync.samples.length >= minClockSamples,
+      isReady: () =>
+          _mediaReady && clockSync.samples.length >= minClockSamples,
     );
   }
 
   final SessionEndpoint endpoint;
-  final String? localFilePath;
+  /// Copie locale du film (mode 1 uniquement).
+  final MediaRef? localMedia;
+  final MediaOpener opener;
+  final Duration helloTimeout;
   final String deviceName;
   final MonotonicClock clock;
   final ClockSync clockSync;
@@ -49,6 +58,8 @@ class GuestSession extends SyncSession {
   Timer? _pingTimer;
   FileFingerprint? fingerprint;
   int? hostDurationMs;
+  final Completer<HelloMsg> _hostHello = Completer<HelloMsg>();
+  bool _mediaReady = false;
 
   @override
   bool get isHost => false;
@@ -56,17 +67,15 @@ class GuestSession extends SyncSession {
   @override
   int? get rttMs => clockSync.rttMs;
 
+  /// Connexion : `hello` → réponse de l'hôte → ouverture du média
+  /// (fichier local en mode 1, URL HTTP de l'hôte en mode 2) → synchro.
   Future<void> start() async {
     update(status: SessionStatus.connecting);
     try {
-      if (mode.checksFingerprint && localFilePath != null) {
-        fingerprint = await FileFingerprint.compute(localFilePath!);
+      if (mode.checksFingerprint && localMedia != null) {
+        fingerprint =
+            await FileFingerprint.computeWith(localMedia!.uri, opener);
       }
-      final source = await mode.resolveGuestSource(
-        endpoint: endpoint,
-        localFilePath: localFilePath,
-      );
-      await engine.open(source);
       final ch = await PeerChannel.connect(endpoint.wsUri);
       _channel = ch;
       _sub = ch.messages.listen(_onMessage, onError: (_) {});
@@ -76,12 +85,25 @@ class GuestSession extends SyncSession {
         deviceName: deviceName,
         mode: sessionMode,
         fingerprint: fingerprint,
-        durationMs: engine.durationMs,
       ));
       _ping();
+      final hostHello = await _hostHello.future.timeout(helloTimeout);
+      final source = await mode.resolveGuestSource(
+        endpoint: endpoint,
+        hostHello: hostHello,
+        localMedia: localMedia,
+      );
+      await engine.open(source);
+      _mediaReady = true;
       controller.start();
+      update(
+        status: SessionStatus.connected,
+        peerName: hostHello.deviceName,
+        fileMatch: hostHello.fileMatch,
+      );
     } catch (e) {
       update(status: SessionStatus.error, error: '$e');
+      await _channel?.close();
       rethrow;
     }
   }
@@ -110,15 +132,14 @@ class GuestSession extends SyncSession {
         notifyListeners();
       case HelloMsg():
         hostDurationMs = msg.durationMs;
-        update(
-          status: SessionStatus.connected,
-          peerName: msg.deviceName,
-          fileMatch: msg.fileMatch,
-        );
+        if (!_hostHello.isCompleted) _hostHello.complete(msg);
       case StateMsg():
         controller.applyState(msg.state);
         notifyListeners();
       case ErrorMsg():
+        if (!_hostHello.isCompleted) {
+          _hostHello.completeError(StateError(msg.message));
+        }
         update(status: SessionStatus.error, error: msg.message);
       case PingMsg() || CmdMsg():
         break; // non attendus côté invité
@@ -152,7 +173,6 @@ class GuestSession extends SyncSession {
     _pingTimer?.cancel();
     await _sub?.cancel();
     await _channel?.close();
-    await mode.detach();
     await controller.dispose();
   }
 }

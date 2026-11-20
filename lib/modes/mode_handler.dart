@@ -1,6 +1,27 @@
+import '../core/media_source.dart';
+import '../core/protocol.dart';
 import '../core/session_endpoint.dart';
 import '../core/session_mode.dart';
 import '../net/host_server.dart';
+
+/// Ce que le mode a mis en place côté hôte.
+class HostAttachment {
+  const HostAttachment({
+    required this.localSource,
+    this.mediaPath,
+    this.onDetach,
+  });
+
+  /// Source ouverte par le lecteur local de l'hôte (chemin ou content://).
+  final String localSource;
+
+  /// Chemin HTTP du média servi aux invités (mode 2), transmis dans `hello`.
+  final String? mediaPath;
+
+  final Future<void> Function()? onDetach;
+
+  Future<void> detach() async => onDetach?.call();
+}
 
 /// Point d'extension commun aux 4 modes.
 ///
@@ -28,19 +49,18 @@ abstract class ModeHandler {
   bool get checksFingerprint => guestNeedsLocalFile;
 
   /// Côté hôte : prépare la diffusion (routes HTTP sur [server], pipeline
-  /// audio…) et retourne la source à ouvrir dans le lecteur local de l'hôte.
-  Future<String> attachHost({
+  /// audio…) et indique la source à ouvrir dans le lecteur local de l'hôte.
+  Future<HostAttachment> attachHost({
     required HostServer server,
-    required String filePath,
+    required MediaRef media,
+    required MediaOpener opener,
   });
 
-  /// Côté invité : source à ouvrir dans le lecteur local
-  /// (chemin local en mode 1, URL HTTP en mode 2…).
+  /// Côté invité, après réception du `hello` de l'hôte : source à ouvrir
+  /// dans le lecteur local (chemin/URI local en mode 1, URL HTTP en mode 2…).
   Future<String> resolveGuestSource({
     required SessionEndpoint endpoint,
-    String? localFilePath,
+    required HelloMsg hostHello,
+    MediaRef? localMedia,
   });
-
-  /// Libère les ressources du mode (routes, encodeurs…).
-  Future<void> detach() async {}
 }

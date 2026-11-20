@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../core/media_source.dart';
 import '../core/session_endpoint.dart';
 import '../modes/mode_handler.dart';
 import '../modes/mode_registry.dart';
 import '../net/discovery.dart';
 import '../net/session/guest_session.dart';
+import '../platform/media_access.dart';
 import '../player/media_kit_engine.dart';
 import 'player_screen.dart';
 import 'qr_scan_screen.dart';
@@ -27,7 +29,8 @@ class _JoinScreenState extends State<JoinScreen> {
   final SessionBrowser _browser = SessionBrowser();
   final _addressCtrl = TextEditingController();
   final _tokenCtrl = TextEditingController();
-  String? _filePath;
+  MediaRef? _localMedia;
+  bool _askFile = false;
   bool _connecting = false;
   String? _discoveryError;
 
@@ -50,8 +53,8 @@ class _JoinScreenState extends State<JoinScreen> {
   }
 
   Future<void> _pickFile() async {
-    final path = await pickMediaFile();
-    if (path != null && mounted) setState(() => _filePath = path);
+    final media = await pickMedia();
+    if (media != null && mounted) setState(() => _localMedia = media);
   }
 
   Future<void> _scan() async {
@@ -86,7 +89,8 @@ class _JoinScreenState extends State<JoinScreen> {
       showError(context, '« ${mode.title} » n\'est pas encore disponible');
       return;
     }
-    if (mode.guestNeedsLocalFile && _filePath == null) {
+    if (mode.guestNeedsLocalFile && _localMedia == null) {
+      setState(() => _askFile = true);
       showError(context, 'Choisissez d\'abord votre copie du film');
       return;
     }
@@ -96,7 +100,7 @@ class _JoinScreenState extends State<JoinScreen> {
       engine: engine,
       mode: mode,
       endpoint: endpoint,
-      localFilePath: _filePath,
+      localMedia: mode.guestNeedsLocalFile ? _localMedia : null,
       deviceName: localDeviceName(),
     );
     try {
@@ -132,13 +136,11 @@ class _JoinScreenState extends State<JoinScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               if (_connecting) const LinearProgressIndicator(),
-              if (widget.mode.guestNeedsLocalFile) ...[
-                Text('1. Votre copie du film', style: theme.textTheme.titleMedium),
+              if (widget.mode.guestNeedsLocalFile || _askFile) ...[
+                Text('Votre copie du film', style: theme.textTheme.titleMedium),
                 ListTile(
                   leading: const Icon(Icons.movie),
-                  title: Text(_filePath == null
-                      ? 'Aucun fichier choisi'
-                      : fileName(_filePath!)),
+                  title: Text(_localMedia?.name ?? 'Aucun fichier choisi'),
                   trailing: TextButton(
                     onPressed: _pickFile,
                     child: const Text('Choisir'),

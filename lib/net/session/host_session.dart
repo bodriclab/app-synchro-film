@@ -3,10 +3,13 @@ import 'dart:async';
 import '../../core/clock_sync.dart';
 import '../../core/constants.dart';
 import '../../core/file_fingerprint.dart';
+import '../../core/media_source.dart';
 import '../../core/monotonic_clock.dart';
 import '../../core/playback_arbiter.dart';
 import '../../core/protocol.dart';
 import '../../core/session_endpoint.dart';
+import '../../modes/mode_handler.dart';
+import '../../platform/media_access.dart';
 import '../../player/sync_controller.dart';
 import '../discovery.dart';
 import '../host_server.dart';
@@ -23,13 +26,15 @@ class HostSession extends SyncSession {
   HostSession({
     required super.engine,
     required super.mode,
-    required this.filePath,
+    required this.media,
+    MediaOpener? opener,
     this.deviceName = 'Hôte',
     this.announcer,
     String? token,
     this.preferredPort = kDefaultPort,
     MonotonicClock? clock,
-  })  : clock = clock ?? MonotonicClock(),
+  })  : opener = opener ?? openMedia,
+        clock = clock ?? MonotonicClock(),
         token = token ?? generateSessionToken() {
     server = HostServer(token: this.token, preferredPort: preferredPort);
     arbiter = PlaybackArbiter(this.clock.nowMs);
@@ -40,7 +45,9 @@ class HostSession extends SyncSession {
     );
   }
 
-  final String filePath;
+  /// Film de l'hôte (chemin ou URI content:// d'origine, jamais copié).
+  final MediaRef media;
+  final MediaOpener opener;
   final String deviceName;
   final SessionAnnouncer? announcer;
   final MonotonicClock clock;
@@ -57,6 +64,7 @@ class HostSession extends SyncSession {
   StreamSubscription<PeerChannel>? _guestsSub;
   StreamSubscription<SyncMessage>? _msgSub;
   Timer? _stateTimer;
+  HostAttachment? _attachment;
 
   @override
   bool get isHost => true;
@@ -73,11 +81,16 @@ class HostSession extends SyncSession {
     update(status: SessionStatus.starting);
     try {
       if (mode.checksFingerprint) {
-        fingerprint = await FileFingerprint.compute(filePath);
+        fingerprint = await FileFingerprint.computeWith(media.uri, opener);
       }
       await server.start();
-      final source = await mode.attachHost(server: server, filePath: filePath);
-      await engine.open(source);
+      final attachment = await mode.attachHost(
+        server: server,
+        media: media,
+        opener: opener,
+      );
+      _attachment = attachment;
+      await engine.open(attachment.localSource);
       _guestsSub = server.guests.listen(_onGuest);
       await controller.applyState(arbiter.state);
       controller.start();
@@ -155,6 +168,7 @@ class HostSession extends SyncSession {
       fingerprint: fingerprint,
       durationMs: engine.durationMs,
       fileMatch: match,
+      mediaPath: _attachment?.mediaPath,
     ));
     ch.send(StateMsg(arbiter.state));
     update(
@@ -200,7 +214,7 @@ class HostSession extends SyncSession {
     await _msgSub?.cancel();
     await _guest?.close();
     await announcer?.stop();
-    await mode.detach();
+    await _attachment?.detach();
     await server.dispose();
     await controller.dispose();
     update(status: SessionStatus.idle, clearPeer: true);

@@ -19,6 +19,7 @@ void main() {
           fingerprint: fp,
           durationMs: 1000,
           fileMatch: true,
+          mediaPath: '/media/ab12cd',
         ),
         const PingMsg(12),
         const PongMsg(t0: 1, t1: 2, t2: 3),

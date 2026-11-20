@@ -1,3 +1,5 @@
+import '../core/media_source.dart';
+import '../core/protocol.dart';
 import '../core/session_endpoint.dart';
 import '../core/session_mode.dart';
 import '../net/host_server.dart';
@@ -32,16 +34,18 @@ class BrowserMode extends ModeHandler {
   bool get guestNeedsLocalFile => false;
 
   @override
-  Future<String> attachHost({
+  Future<HostAttachment> attachHost({
     required HostServer server,
-    required String filePath,
+    required MediaRef media,
+    required MediaOpener opener,
   }) =>
       throw UnimplementedError('Mode 4 (navigateur) pas encore implémenté');
 
   @override
   Future<String> resolveGuestSource({
     required SessionEndpoint endpoint,
-    String? localFilePath,
+    required HelloMsg hostHello,
+    MediaRef? localMedia,
   }) =>
       throw UnimplementedError('Mode 4 (navigateur) pas encore implémenté');
 }

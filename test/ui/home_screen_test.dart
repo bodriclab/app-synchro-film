@@ -10,7 +10,7 @@ void main() {
     expect(find.text('Stream app ↔ app'), findsOneWidget);
     expect(find.text('Audio seul (écran partagé)'), findsOneWidget);
     expect(find.text('Stream vers navigateur'), findsOneWidget);
-    expect(find.textContaining('bientôt'), findsNWidgets(3));
+    expect(find.textContaining('bientôt'), findsNWidgets(2));
     expect(find.text('Créer une session (hôte)'), findsOneWidget);
     expect(find.text('Rejoindre une session'), findsOneWidget);
   });
