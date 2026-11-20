@@ -2,7 +2,6 @@ import '../core/media_source.dart';
 import '../core/protocol.dart';
 import '../core/session_endpoint.dart';
 import '../core/session_mode.dart';
-import '../net/host_server.dart';
 import '../net/media_http_handler.dart';
 import 'mode_handler.dart';
 
@@ -31,23 +30,19 @@ class StreamMode extends ModeHandler {
   bool get guestNeedsLocalFile => false;
 
   @override
-  Future<HostAttachment> attachHost({
-    required HostServer server,
-    required MediaRef media,
-    required MediaOpener opener,
-  }) async {
+  Future<HostAttachment> attachHost(HostContext ctx) async {
     final handler = MediaHttpHandler(
-      token: server.token,
+      token: ctx.server.token,
       mediaId: generateSessionToken(length: 6),
-      media: media,
-      opener: opener,
+      media: ctx.media,
+      opener: ctx.opener,
     );
     const prefix = '/media/';
-    server.addRoute(prefix, handler.call);
+    ctx.server.addRoute(prefix, handler.call);
     return HostAttachment(
-      localSource: media.uri,
+      localSource: ctx.media.uri,
       mediaPath: handler.path,
-      onDetach: () async => server.removeRoute(prefix),
+      onDetach: () async => ctx.server.removeRoute(prefix),
     );
   }
 
@@ -66,10 +61,10 @@ class StreamMode extends ModeHandler {
 
   /// URL HTTP du média pour l'invité.
   static Uri mediaUrl(SessionEndpoint endpoint, String mediaPath) => Uri(
-        scheme: 'http',
-        host: endpoint.host,
-        port: endpoint.port,
-        path: mediaPath,
-        queryParameters: {'token': endpoint.token},
-      );
+    scheme: 'http',
+    host: endpoint.host,
+    port: endpoint.port,
+    path: mediaPath,
+    queryParameters: {'token': endpoint.token},
+  );
 }

@@ -7,6 +7,7 @@ import '../../core/media_source.dart';
 import '../../core/monotonic_clock.dart';
 import '../../core/protocol.dart';
 import '../../core/session_endpoint.dart';
+import '../../modes/mode_handler.dart';
 import '../../platform/media_access.dart';
 import '../../player/sync_controller.dart';
 import '../peer_channel.dart';
@@ -26,19 +27,19 @@ class GuestSession extends SyncSession {
     this.deviceName = 'Invité',
     MonotonicClock? clock,
     this.minClockSamples = 3,
-  })  : opener = opener ?? openMedia,
-        clock = clock ?? MonotonicClock(),
-        clockSync = ClockSync() {
+  }) : opener = opener ?? openMedia,
+       clock = clock ?? MonotonicClock(),
+       clockSync = ClockSync() {
     controller = SyncController(
       engine: engine,
       clock: GuestSharedClock(this.clock, clockSync),
       localNowMs: this.clock.nowMs,
-      isReady: () =>
-          _mediaReady && clockSync.samples.length >= minClockSamples,
+      isReady: () => _mediaReady && clockSync.samples.length >= minClockSamples,
     );
   }
 
   final SessionEndpoint endpoint;
+
   /// Copie locale du film (mode 1 uniquement).
   final MediaRef? localMedia;
   final MediaOpener opener;
@@ -60,6 +61,7 @@ class GuestSession extends SyncSession {
   int? hostDurationMs;
   final Completer<HelloMsg> _hostHello = Completer<HelloMsg>();
   bool _mediaReady = false;
+  GuestAttachment? _attachment;
 
   @override
   bool get isHost => false;
@@ -73,19 +75,26 @@ class GuestSession extends SyncSession {
     update(status: SessionStatus.connecting);
     try {
       if (mode.checksFingerprint && localMedia != null) {
-        fingerprint =
-            await FileFingerprint.computeWith(localMedia!.uri, opener);
+        fingerprint = await FileFingerprint.computeWith(
+          localMedia!.uri,
+          opener,
+        );
       }
+      final attachment = await mode.prepareGuest();
+      _attachment = attachment;
       final ch = await PeerChannel.connect(endpoint.wsUri);
       _channel = ch;
       _sub = ch.messages.listen(_onMessage, onError: (_) {});
       ch.done.then((_) => _onDisconnected());
-      ch.send(HelloMsg(
-        role: PeerRole.guest,
-        deviceName: deviceName,
-        mode: sessionMode,
-        fingerprint: fingerprint,
-      ));
+      ch.send(
+        HelloMsg(
+          role: PeerRole.guest,
+          deviceName: deviceName,
+          mode: sessionMode,
+          fingerprint: fingerprint,
+          audioPort: attachment.audioPort,
+        ),
+      );
       _ping();
       final hostHello = await _hostHello.future.timeout(helloTimeout);
       final source = await mode.resolveGuestSource(
@@ -96,6 +105,12 @@ class GuestSession extends SyncSession {
       await engine.open(source);
       _mediaReady = true;
       controller.start();
+      await attachment.onStart?.call(
+        GuestContext(
+          localNowMs: clock.nowMs,
+          expectedPositionAt: _expectedPositionAt,
+        ),
+      );
       update(
         status: SessionStatus.connected,
         peerName: hostHello.deviceName,
@@ -104,8 +119,23 @@ class GuestSession extends SyncSession {
     } catch (e) {
       update(status: SessionStatus.error, error: '$e');
       await _channel?.close();
+      await _attachment?.detach();
+      _attachment = null;
       rethrow;
     }
+  }
+
+  /// Objet de réglage propre au mode (ex. latence audio du mode 3).
+  Object? get modeControl => _attachment?.control;
+
+  int? _expectedPositionAt(int localMs) {
+    if (!_mediaReady || clockSync.samples.length < minClockSamples) return null;
+    final target = controller.target;
+    if (target == null || !target.playing) return null;
+    return target.positionAt(
+      clockSync.toHost(localMs),
+      durationMs: hostDurationMs,
+    );
   }
 
   void _ping() {
@@ -173,6 +203,7 @@ class GuestSession extends SyncSession {
     _pingTimer?.cancel();
     await _sub?.cancel();
     await _channel?.close();
+    await _attachment?.detach();
     await controller.dispose();
   }
 }

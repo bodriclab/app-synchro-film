@@ -9,7 +9,10 @@ import '../../core/playback_arbiter.dart';
 import '../../core/protocol.dart';
 import '../../core/session_endpoint.dart';
 import '../../modes/mode_handler.dart';
+import '../../platform/ffmpeg_runner.dart';
 import '../../platform/media_access.dart';
+import '../../platform/web_assets.dart';
+import '../web_client_handler.dart';
 import '../../player/sync_controller.dart';
 import '../discovery.dart';
 import '../host_server.dart';
@@ -28,14 +31,18 @@ class HostSession extends SyncSession {
     required super.mode,
     required this.media,
     MediaOpener? opener,
+    FfmpegRunner Function()? ffmpeg,
+    AssetLoader? loadAsset,
     this.deviceName = 'Hôte',
     this.announcer,
     String? token,
     this.preferredPort = kDefaultPort,
     MonotonicClock? clock,
-  })  : opener = opener ?? openMedia,
-        clock = clock ?? MonotonicClock(),
-        token = token ?? generateSessionToken() {
+  }) : opener = opener ?? openMedia,
+       ffmpeg = ffmpeg ?? defaultFfmpegRunner,
+       loadAsset = loadAsset ?? loadWebClientAsset,
+       clock = clock ?? MonotonicClock(),
+       token = token ?? generateSessionToken() {
     server = HostServer(token: this.token, preferredPort: preferredPort);
     arbiter = PlaybackArbiter(this.clock.nowMs);
     controller = SyncController(
@@ -48,6 +55,8 @@ class HostSession extends SyncSession {
   /// Film de l'hôte (chemin ou URI content:// d'origine, jamais copié).
   final MediaRef media;
   final MediaOpener opener;
+  final FfmpegRunner Function() ffmpeg;
+  final AssetLoader loadAsset;
   final String deviceName;
   final SessionAnnouncer? announcer;
   final MonotonicClock clock;
@@ -85,9 +94,16 @@ class HostSession extends SyncSession {
       }
       await server.start();
       final attachment = await mode.attachHost(
-        server: server,
-        media: media,
-        opener: opener,
+        HostContext(
+          server: server,
+          media: media,
+          opener: opener,
+          hostNowMs: clock.nowMs,
+          state: () => arbiter.state,
+          durationMs: () => engine.durationMs,
+          ffmpeg: ffmpeg,
+          loadAsset: loadAsset,
+        ),
       );
       _attachment = attachment;
       await engine.open(attachment.localSource);
@@ -129,6 +145,7 @@ class HostSession extends SyncSession {
     channel.done.then((_) {
       if (!identical(_guest, channel)) return;
       _guest = null;
+      _attachment?.onGuestLeft?.call();
       update(status: SessionStatus.waitingForGuest, clearPeer: true);
       _announce();
     });
@@ -159,17 +176,23 @@ class HostSession extends SyncSession {
       ch.close();
       return;
     }
-    final match =
-        mode.checksFingerprint ? fingerprint!.matches(hello.fingerprint) : null;
-    ch.send(HelloMsg(
-      role: PeerRole.host,
-      deviceName: deviceName,
-      mode: sessionMode,
-      fingerprint: fingerprint,
-      durationMs: engine.durationMs,
-      fileMatch: match,
-      mediaPath: _attachment?.mediaPath,
-    ));
+    final match = mode.checksFingerprint
+        ? fingerprint!.matches(hello.fingerprint)
+        : null;
+    ch.send(
+      HelloMsg(
+        role: PeerRole.host,
+        deviceName: deviceName,
+        mode: sessionMode,
+        fingerprint: fingerprint,
+        durationMs: engine.durationMs,
+        fileMatch: match,
+        mediaPath: _attachment?.mediaPath,
+        mediaName: media.name,
+        remux: _attachment?.remux,
+      ),
+    );
+    _attachment?.onGuestHello?.call(hello, ch.remoteAddress);
     ch.send(StateMsg(arbiter.state));
     update(
       status: SessionStatus.connected,

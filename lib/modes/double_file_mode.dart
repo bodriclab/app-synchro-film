@@ -2,7 +2,6 @@ import '../core/media_source.dart';
 import '../core/protocol.dart';
 import '../core/session_endpoint.dart';
 import '../core/session_mode.dart';
-import '../net/host_server.dart';
 import 'mode_handler.dart';
 
 /// Mode 1 — Synchro double fichier.
@@ -20,7 +19,8 @@ class DoubleFileMode extends ModeHandler {
   String get title => 'Synchro double fichier';
 
   @override
-  String get subtitle => 'Chacun a le même fichier, la lecture est synchronisée';
+  String get subtitle =>
+      'Chacun a le même fichier, la lecture est synchronisée';
 
   @override
   bool get isImplemented => true;
@@ -29,12 +29,8 @@ class DoubleFileMode extends ModeHandler {
   bool get guestNeedsLocalFile => true;
 
   @override
-  Future<HostAttachment> attachHost({
-    required HostServer server,
-    required MediaRef media,
-    required MediaOpener opener,
-  }) async =>
-      HostAttachment(localSource: media.uri);
+  Future<HostAttachment> attachHost(HostContext ctx) async =>
+      HostAttachment(localSource: ctx.media.uri);
 
   @override
   Future<String> resolveGuestSource({
