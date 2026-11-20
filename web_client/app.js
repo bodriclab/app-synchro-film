@@ -10,19 +10,9 @@
   const now = () => performance.now();
 
   // ---------- Horloge partagée (hôte = local + offset) ----------
-  const clock = { samples: [], offset: 0, rtt: null };
-  const median = (a) => {
-    const s = a.slice().sort((x, y) => x - y);
-    const m = s.length >> 1;
-    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-  };
-  const hostNow = () => now() + clock.offset;
-  function addSample(t0, t1, t2, t3) {
-    clock.samples.push({ off: ((t1 - t0) + (t2 - t3)) / 2, rtt: Math.max(0, (t3 - t0) - (t2 - t1)) });
-    if (clock.samples.length > 8) clock.samples.shift();
-    clock.offset = median(clock.samples.map((s) => s.off));
-    clock.rtt = median(clock.samples.map((s) => s.rtt));
-  }
+  const clock = SFClock.create(); // clock.js (commun aux modes 4 et 5)
+  const hostNow = clock.hostNow;
+  const addSample = clock.add;
 
   // ---------- État ----------
   let ws = null, state = null, hello = null, durationMs = null;
@@ -35,12 +25,7 @@
   function arm(kind) { corr.measure = true; corr.kind = kind; corr.armedAt = now(); corr.flowingAt = -1; }
   let seeking = false;
 
-  function positionAt(st, t) {
-    let p = st.playing ? st.position + (t - st.at) * st.rate : st.position;
-    if (p < 0) p = 0;
-    if (durationMs && p > durationMs) p = durationMs;
-    return p;
-  }
+  const positionAt = (st, t) => SFClock.positionAt(st, t, durationMs);
   const expected = () => (state ? positionAt(state, hostNow()) : 0);
   const localPos = () => video.currentTime * 1000 + (useRemux ? remuxOffset : 0);
   const mediaId = () => (hello && hello.media ? hello.media.split('/').pop() : '');

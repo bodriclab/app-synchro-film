@@ -1,6 +1,5 @@
 // Test de bout en bout du mode 4 dans un vrai navigateur (Chrome headless,
 // piloté via le protocole DevTools). Ignoré si Chrome ou ffmpeg manquent.
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,102 +12,27 @@ import 'package:app_synchro_film/platform/ffmpeg_runner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../player/fake_engine.dart';
+import '../support/chrome.dart';
 import '../support/fixtures.dart';
 
-String? _chrome() {
-  for (final c in ['google-chrome', 'chromium', 'chromium-browser']) {
-    try {
-      if (Process.runSync('which', [c]).exitCode == 0) return c;
-    } catch (_) {}
-  }
-  return null;
-}
-
-class _Page {
-  _Page(this._ws) {
-    _ws.listen((data) {
-      final m = jsonDecode(data as String) as Map<String, dynamic>;
-      final id = m['id'];
-      if (id is int) _pending.remove(id)?.complete(m);
-    });
-  }
-  final WebSocket _ws;
-  final Map<int, Completer<Map<String, dynamic>>> _pending = {};
-  int _id = 0;
-
-  Future<dynamic> eval(String expr) async {
-    final id = ++_id;
-    final c = _pending[id] = Completer();
-    _ws.add(
-      jsonEncode({
-        'id': id,
-        'method': 'Runtime.evaluate',
-        'params': {'expression': expr, 'returnByValue': true},
-      }),
-    );
-    final r = await c.future.timeout(const Duration(seconds: 10));
-    return (r['result'] as Map)['result']?['value'];
-  }
-
-  Future<void> close() => _ws.close();
-}
-
 void main() {
-  final chrome = _chrome();
+  final chrome = findChrome();
   final skip = chrome == null || !hasFfmpeg ? 'Chrome ou ffmpeg absent' : null;
   late Directory dir;
-  Process? browser;
-  late int devtoolsPort;
+  HeadlessChrome? browser;
 
   setUpAll(() async {
     if (skip != null) return;
     dir = await Directory.systemTemp.createTemp('e2e');
-    final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-    devtoolsPort = s.port;
-    await s.close();
-    browser = await Process.start(chrome!, [
-      '--headless=new',
-      '--no-sandbox',
-      '--disable-gpu',
-      '--autoplay-policy=no-user-gesture-required',
-      '--remote-debugging-port=$devtoolsPort',
-      '--user-data-dir=${dir.path}/profile',
-      'about:blank',
-    ]);
-    browser!.stdout.drain<void>();
-    browser!.stderr.drain<void>();
+    browser = await HeadlessChrome.start(chrome!);
   });
 
   tearDownAll(() async {
-    browser?.kill();
-    await browser?.exitCode;
-    if (skip == null) {
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      await dir.delete(recursive: true).catchError((_) => dir);
-    }
+    await browser?.close();
+    if (skip == null) await dir.delete(recursive: true).catchError((_) => dir);
   });
 
-  Future<_Page> open(String url) async {
-    final client = HttpClient();
-    for (var i = 0; i < 50; i++) {
-      try {
-        final req = await client.openUrl(
-          'PUT',
-          Uri.parse(
-            'http://127.0.0.1:$devtoolsPort/json/new?${Uri.encodeComponent(url)}',
-          ),
-        );
-        final res = await req.close();
-        final j = jsonDecode(await res.transform(utf8.decoder).join()) as Map;
-        return _Page(
-          await WebSocket.connect(j['webSocketDebuggerUrl'] as String),
-        );
-      } catch (_) {
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      }
-    }
-    throw StateError('Chrome DevTools injoignable');
-  }
+  Future<ChromePage> open(String url) => browser!.open(url);
 
   Future<void> scenario(String filmName, String audioCodec, bool remux) async {
     final film = await makeTestFilm(
