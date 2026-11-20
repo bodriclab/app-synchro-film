@@ -108,7 +108,7 @@ test/       tests unitaires + intégration hôte/invité sur localhost (modes 1�
 - **Modes 3 et 4 : testés sur PC (localhost, Chrome headless, FFmpeg/libopus système), pas encore sur de vrais téléphones/TV.**
 - **Mode 3** : un seul invité ; latence auto sous Android uniquement (API cachée `AudioManager.getOutputLatency`, sinon estimation par type de sortie) ; **sous Windows, réglage manuel seul** (WASAPI non branché). La précision Bluetooth réelle dépend du casque : ajuster le curseur. Le son de l'hôte n'est pas coupé.
 - **Mode 4** : codecs limités à ceux du navigateur (H.264/AAC partout ; HEVC/AV1 selon l'appareil — pas de réencodage vidéo). En flux réemballé (MKV…), un saut recharge le flux (image figée ~1–3 s) et l'écart initial est résorbé par la vitesse ±2 % (quelques secondes). Un seul navigateur à la fois. Safari iOS : lecture automatique souvent bloquée → bouton *Activer la lecture*.
-- **Taille** : FFmpeg (ffmpeg-kit « min ») et libopus ajoutent ~10–15 Mo par APK.
+- **Taille** : FFmpeg (ffmpeg-kit « min », en plus du FFmpeg interne de libmpv) et libopus ajoutent ~19 Mo : APK arm64 ≈ 57 Mo (38 Mo en v0.2.0).
 - **Android, fournisseurs non « seekables »** : les films sont lus via leur URI `content://` d'origine (sélecteur système, aucune copie). Les rares fournisseurs qui ne donnent qu'un flux (certains clouds) ne sont pas gérés : choisir un fichier stocké sur le téléphone.
 - **Mode 2** : un seul invité ; débit limité par le Wi-Fi (un film 4K à fort débit peut saccader sur un hotspot faible) ; pas de reprise automatique si l'hôte coupe le réseau.
 - Le **token** de session circule en clair dans le TXT mDNS : suffisant sur un hotspot privé ; prévoir un appairage par code si besoin.
