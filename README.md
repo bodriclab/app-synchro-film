@@ -69,6 +69,14 @@ L'invité n'installe rien : n'importe quel navigateur (TV, tablette, PC, iPhone�
 La page (HTML/JS/CSS embarqués dans l'app, **aucun CDN**, 100 % hors-ligne) refait la synchro en JS : horloge NTP (médiane de 8 via WebSocket), correction douce par `playbackRate` (±2 %), saut au-delà de 1 s, avec compensation apprise du délai de démarrage/saut.
 **Conteneurs non lisibles** (MKV, AVI…) et **Safari / iOS** : l'hôte **réemballe à la volée** en MP4 fragmenté avec FFmpeg (`-c:v copy`, étiquette `hvc1` pour le HEVC ; audio AC3/DTS/Opus/FLAC… converti en AAC si le navigateur ne le lit pas). Intégration : [`ffmpeg_kit_flutter_new_min`](https://pub.dev/packages/ffmpeg_kit_flutter_new_min) (Android + Windows), sortie via socket TCP locale. Le flux réemballé gère les requêtes `Range` (taille estimée, fin comblée par une boîte MP4 « free »). Un saut relance la conversion à partir de l'image clé la plus proche (image figée quelques instants).
 
+### Lecture d'une copie locale et copie compatible iOS (v0.7.0)
+
+- **Lecture locale sans latence :** Cliquez sur « 📂 Utiliser un fichier local » pour lire une vidéo depuis votre appareil tout en restant synchronisé via l'horloge NTP (sauts directs, correction douce de la vitesse, aucun rechargement).
+- **Gestion des flux :** Le stream HTTP et le remux temps réel de l'hôte s'arrêtent automatiquement à l'activation, tandis que la session WebSocket reste active.
+- **Compatibilité iOS :** Le bouton « 📱 Télécharger copie compatible iOS » (GET `/download`) télécharge un fichier optimisé (`_ios.mp4`), servi sans conversion si déjà compatible, ou préparé avec réencodage audio rapide et index en tête (`+faststart`).
+- **Usage conseillé sur iPhone :** Téléchargez d'abord la copie compatible, puis sélectionnez-la via le bouton de fichier local pour une lecture fluide sans latence réseau.
+- **Fonctionnalités associées :** Avertissement non bloquant en cas de différence de taille de fichier, gestion des formats illisibles avec options de repli, et maintien des sous-titres textuels choisis par l'hôte.
+
 ## Utilisation (mode 5 — audio seul vers un navigateur)
 
 Un seul écran (l'hôte) ; l'invité écoute la bande-son dans **ses écouteurs**, depuis **son navigateur**, sans installer l'app (iPhone compris).

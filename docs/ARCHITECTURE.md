@@ -147,3 +147,12 @@ docs/
 - `lib/transfer/downloader.dart` : téléchargement avec reprise via **Range**, nouvelles tentatives en cas d’échec.  
 - `lib/transfer/download_sink.dart` (`FileDownloadSink`) : écriture en fichiers temporaires `.part` accompagnés du méta‑fichier `.part.json`.  
 - `lib/transfer/android_download_sink.dart` + `DownloadChannel.kt` : intégration Android — sauvegarde dans **MediaStore** (dossier Téléchargements/SynchroFilm) et communication via le canal de téléchargement.
+
+## 11. Ajouts v0.7.0 (modules)
+
+- `lib/core/mp4_scan.dart` – `scanMp4Codecs` : lit les boîtes *ftyp*/*moov* puis les entrées *stsd* des pistes (vide/soun) et détermine `Mp4Codecs.iosNative` = `avc1` ou `hvc1` + `mp4a`.
+- `lib/core/remux.dart` – `iosCopyArgs` : `-c:v copy`, `-tag:v hvc1` si HEVC, AAC 192 kbit/s stéréo, `+faststart`.
+- `lib/platform/ffmpeg_runner.dart` – `startFile` / `FfmpegFileJob` : FFmpeg écrit directement le fichier, indispensable pour le `+faststart`.
+- `lib/net/ios_download_handler.dart` – `IosDownloadHandler` : gère les routes `/download`, `/download/status`, `/download/prepare` ; préparation unique par session, fichier temporaire `synchro-ios-<id>.mp4` supprimé par `dispose` ; sert le fichier via `MediaHttpHandler.serve`.
+- `lib/net/remux_http_handler.dart` – `POST /remux/{id}/stop` : arrête le remux en temps réel lorsque la page passe en lecture locale.
+- `web_client/app.js` – `useLocalFile` / `backToStream` : crée un *Object URL*, synchronisation standard sans rechargement, affiche un message d’erreur de décodage, bouton de copie iOS avec état de préparation.
