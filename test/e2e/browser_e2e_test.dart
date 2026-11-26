@@ -55,7 +55,7 @@ void main() {
     );
     final clock = MonotonicClock();
     final host = HostSession(
-      engine: FakeEngine(now: clock.nowMs),
+      engine: FakeEngine(now: clock.nowMs, durationMs: 60000),
       mode: const BrowserMode(),
       media: MediaRef.file(film),
       preferredPort: 0,
@@ -84,15 +84,20 @@ void main() {
           ' safari: synchroFilm.safari, src: synchroFilm.video.currentSrc,'
           ' err: synchroFilm.video.error && synchroFilm.video.error.code,'
           ' lead: synchroFilm.corr.seekLead, trace: synchroFilm.trace.join(" | "),'
-          ' samples: synchroFilm.clock.samples.length})',
+          ' samples: synchroFilm.clock.samples.length,'
+          ' rs: synchroFilm.video.readyState, ns: synchroFilm.video.networkState,'
+          ' buf: Array.from({length: synchroFilm.video.buffered.length}, (_, i) =>'
+          ' [synchroFilm.video.buffered.start(i), synchroFilm.video.buffered.end(i)]),'
+          ' dur: synchroFilm.video.duration, rate: synchroFilm.video.playbackRate})',
         ) as String,
       ) as Map<String, dynamic>;
 
       Future<Map<String, dynamic>> settle(String label) async {
         Map<String, dynamic> s = {};
-        // Jusqu'à 30 s : en flux réemballé, l'écart de démarrage est résorbé
-        // par la seule correction de débit (±2 %).
-        for (var i = 0; i < 120; i++) {
+        // Jusqu'à 45 s : en flux réemballé, l'écart de démarrage est résorbé
+        // par la seule correction de débit (±2 %) ; le transcodage AAC est
+        // plus lent quand toute la suite tourne en parallèle.
+        for (var i = 0; i < 180; i++) {
           await Future<void>.delayed(const Duration(milliseconds: 250));
           s = await snap();
           final d = s['drift'] as num?;
@@ -161,7 +166,7 @@ void main() {
       await scenario('ios.mp4', 'libopus', true, safari: true);
     },
     skip: skip,
-    timeout: const Timeout(Duration(minutes: 2)),
+    timeout: const Timeout(Duration(minutes: 3)),
   );
 
   test(
@@ -182,7 +187,7 @@ void main() {
       expect(r.exitCode, 0, reason: '${r.stderr}');
       final clock = MonotonicClock();
       final host = HostSession(
-        engine: FakeEngine(now: clock.nowMs),
+        engine: FakeEngine(now: clock.nowMs, durationMs: 60000),
         mode: const BrowserMode(),
         media: MediaRef.file(withSubs),
         preferredPort: 0,

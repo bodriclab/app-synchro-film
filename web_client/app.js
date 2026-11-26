@@ -34,7 +34,7 @@
   // seekLead : avance apprise pour compenser le temps qu'un saut met à
   // s'appliquer pendant la lecture (décodage, mise en mémoire tampon).
   const corr = { correcting: false, lastSeekAt: -1e9, drift: null,
-    seekLead: 0, startLead: 0, measure: false, fastSeeks: 0, kind: '', armedAt: 0, flowingAt: -1 };
+    seekLead: 0, startLead: 0, holdUntil: 0, measure: false, fastSeeks: 0, kind: '', armedAt: 0, flowingAt: -1 };
   // Un écart n'est mesuré qu'une fois l'image réellement repartie.
   function arm(kind) { corr.measure = true; corr.kind = kind; corr.armedAt = now(); corr.flowingAt = -1; }
   let seeking = false;
@@ -242,6 +242,7 @@
     corr.drift = drift;
     if (state.playing && video.paused) {
       // En avance : on attend, en démarrant un peu tôt (délai de démarrage appris).
+      if (corr.holdUntil) return; // pause exacte en cours (voir plus bas)
       if (drift > Math.max(DEADBAND, corr.startLead) && drift < 10000) return;
       if ((drift < -DEADBAND || drift >= 10000) && now() - corr.lastSeekAt > COOLDOWN) seekTo(exp);
       // Le démarrage prend du temps : on mesurera l'écart une fois lancé.
@@ -275,7 +276,25 @@
       const learn = (v) => Math.min(1500, Math.max(0, v - drift * 0.9));
       if (corr.kind === 'seek') corr.seekLead = learn(corr.seekLead);
       else corr.startLead = learn(corr.startLead);
-      if (abs > 120 && abs <= SEEK && corr.fastSeeks < 3 && canFastSeek(exp)) { corr.fastSeeks++; seekTo(exp); return; }
+      if (abs > 120 && abs <= SEEK && corr.fastSeeks < 3) {
+        if (canFastSeek(exp)) { corr.fastSeeks++; seekTo(exp); return; }
+        if (useRemux && drift > 0) {
+          // Flux réemballé en avance (démarrage plus rapide que prévu) : une
+          // courte pause exacte plutôt que 40 s de correction à -2 %.
+          corr.fastSeeks++;
+          log('hold ' + Math.round(drift));
+          corr.holdUntil = now() + drift;
+          video.pause();
+          setTimeout(() => {
+            corr.holdUntil = 0;
+            if (!state || !state.playing) return;
+            arm('start');
+            corr.lastSeekAt = now();
+            video.play().catch(() => { $('unlock').hidden = false; });
+          }, drift);
+          return;
+        }
+      }
       corr.fastSeeks = 0;
     }
     if (abs > SEEK) { seekTo(exp); return; }

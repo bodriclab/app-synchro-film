@@ -28,6 +28,7 @@ class RemuxHttpHandler {
     required this.media,
     required this.ffmpeg,
     Future<Directory> Function()? tempDir,
+    this.durationMs,
   }) : _tempDir = tempDir ?? (() async => Directory.systemTemp);
 
   final String token;
@@ -35,6 +36,11 @@ class RemuxHttpHandler {
   final MediaRef media;
   final FfmpegRunner ffmpeg;
   final Future<Directory> Function() _tempDir;
+
+  /// Durée du film (ms) si connue : la taille annoncée à Safari est alors
+  /// proportionnelle à ce qui reste à lire depuis `start`, sinon le
+  /// navigateur téléchargerait des centaines de Mo de bourrage après un saut.
+  final int? Function()? durationMs;
 
   final Map<int, RemuxProbe> _probes = {};
   FfmpegJob? _current;
@@ -115,9 +121,11 @@ class RemuxHttpHandler {
     }
   }
 
-  /// Taille annoncée à Safari : marge de 10 % (en-têtes de fragments) et
-  /// place pour l'AAC 192 kb/s quand l'audio est converti.
-  int estimateSize(RemuxProbe p) {
+  /// Taille annoncée à Safari pour un flux commençant à [startMs] : part
+  /// restante du fichier (+10 points de marge pour un débit inégal), +10 %
+  /// pour les en-têtes de fragments, place pour l'AAC (320 kb/s) quand
+  /// l'audio est converti, et 16 Mo de réserve.
+  int estimateSize(RemuxProbe p, {int startMs = 0}) {
     var size = media.size;
     if (size == null && !media.isContentUri) {
       try {
@@ -125,7 +133,16 @@ class RemuxHttpHandler {
       } catch (_) {}
     }
     size ??= 4 << 30;
-    return (size * 1.1).ceil() + (p.transcodeAudio ? 200 << 20 : 16 << 20);
+    final dur = durationMs?.call();
+    var frac = 1.0;
+    int? audio;
+    if (dur != null && dur > 0) {
+      final rest = math.max(0, dur - startMs);
+      frac = (rest / dur + 0.1).clamp(0.1, 1.0);
+      audio = (rest / 1000 * 40000).ceil();
+    }
+    final audioRoom = p.transcodeAudio ? (audio ?? (200 << 20)) : 0;
+    return (size * frac * 1.1).ceil() + audioRoom + (16 << 20);
   }
 
   Future<RemuxSpool> _spoolFor(int start, RemuxProbe p) async {
@@ -154,7 +171,7 @@ class RemuxHttpHandler {
         startMs: start,
         job: job,
         file: File('${dir.path}/synchro-remux-$mediaId-$start.mp4'),
-        totalSize: estimateSize(p),
+        totalSize: estimateSize(p, startMs: start),
       );
     }();
     _spool = next;

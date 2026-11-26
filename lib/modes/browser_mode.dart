@@ -57,6 +57,7 @@ class BrowserMode extends ModeHandler {
       media: ctx.media,
       ffmpeg: ctx.ffmpeg(),
       tempDir: appTempDir,
+      durationMs: ctx.durationMs,
     );
     final web = WebClientHandler(token: server.token, loadAsset: ctx.loadAsset);
     server
