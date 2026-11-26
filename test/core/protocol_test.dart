@@ -37,6 +37,27 @@ void main() {
       }
     });
 
+    test('hello du mode 4 : taille du film (mediaSize)', () {
+      const m = HelloMsg(
+        role: PeerRole.host,
+        deviceName: 'PC',
+        mode: SessionMode.browser,
+        mediaPath: '/media/x',
+        mediaName: 'film.mkv',
+        remux: true,
+        mediaSize: 5000000000,
+      );
+      expect(m.toJson()['mediaSize'], 5000000000);
+      final back = SyncMessage.decode(m.encode()) as HelloMsg;
+      expect(back.mediaSize, 5000000000);
+      expect(
+        (SyncMessage.decode(
+          '{"type":"hello","v":1,"role":"guest","name":"a","mode":"browser"}',
+        ) as HelloMsg).mediaSize,
+        isNull,
+      );
+    });
+
     test('messages invalides', () {
       expect(
         () => SyncMessage.decode('pas du json'),

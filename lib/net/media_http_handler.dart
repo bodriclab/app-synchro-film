@@ -37,26 +37,47 @@ class MediaHttpHandler {
     if (req.uri.queryParameters['token'] != token) {
       return _status(res, HttpStatus.forbidden);
     }
+    return serve(
+      req,
+      attachmentName: req.uri.queryParameters['download'] == '1'
+          ? media.name
+          : null,
+    );
+  }
+
+  /// Sert [source] (par défaut le média de la session) avec `Range`, après
+  /// vérification du jeton par l'appelant. [attachmentName] ajoute
+  /// `Content-Disposition: attachment` (téléchargement).
+  Future<void> serve(
+    HttpRequest req, {
+    MediaRef? source,
+    String? attachmentName,
+  }) async {
+    final res = req.response;
+    final m = source ?? media;
     final isHead = req.method == 'HEAD';
     if (!isHead && req.method != 'GET') {
       res.headers.set(HttpHeaders.allowHeader, 'GET, HEAD');
       return _status(res, HttpStatus.methodNotAllowed);
     }
 
-    final RandomAccessMedia source;
+    final RandomAccessMedia source0;
     try {
-      source = await opener(media.uri);
+      source0 = await (identical(m, media) ? opener(m.uri) : _openFile(m));
     } catch (_) {
       return _status(res, HttpStatus.internalServerError);
     }
     try {
-      final size = source.length;
+      final size = source0.length;
       res.headers
         ..set(HttpHeaders.acceptRangesHeader, 'bytes')
-        ..contentType = ContentType.parse(mimeTypeFor(media.name))
+        ..contentType = ContentType.parse(mimeTypeFor(m.name))
         ..set(HttpHeaders.cacheControlHeader, 'no-store');
-      if (req.uri.queryParameters['download'] == '1') {
-        res.headers.set('content-disposition', contentDisposition(media.name));
+      if (attachmentName != null) {
+        res.headers.set(
+          'content-disposition',
+          contentDisposition(attachmentName),
+        );
       }
       final range = parseRange(
         req.headers.value(HttpHeaders.rangeHeader),
@@ -80,7 +101,7 @@ class MediaHttpHandler {
       }
       res.contentLength = size == 0 ? 0 : body.length;
       if (!isHead && size > 0) {
-        await res.addStream(_chunks(source, body));
+        await res.addStream(_chunks(source0, body));
       }
       await res.close();
     } on HttpException {
@@ -88,9 +109,13 @@ class MediaHttpHandler {
     } on SocketException {
       // idem
     } finally {
-      await source.close();
+      await source0.close();
     }
   }
+
+  /// Fichier local produit par l'hôte (copie convertie) : accès direct.
+  Future<RandomAccessMedia> _openFile(MediaRef m) =>
+      m.isContentUri ? opener(m.uri) : FileRandomAccessMedia.open(m.uri);
 
   Stream<List<int>> _chunks(RandomAccessMedia source, ByteRange range) async* {
     var pos = range.start;

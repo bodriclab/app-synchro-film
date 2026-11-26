@@ -148,4 +148,45 @@ void main() {
     // Lecture au milieu de l'en-tête.
     expect(RemuxSpool.paddingBytes(100, 140, 104, 4), ascii.encode('free'));
   });
+
+  test(
+    'POST /remux/{id}/stop arrête le remux temps réel (fichier du spool supprimé)',
+    () async {
+      final film = await makeTestFilm(
+        dir,
+        name: 'stop.mkv',
+        seconds: 20,
+        audioCodec: 'ac3',
+      );
+      await serve(film);
+      final stream = url('/remux/abc.mp4', {'start': '0', 'safari': '1'});
+      final (c, b, _) = await get(stream, range: 'bytes=0-1023');
+      expect(c, 206);
+      expect(b.length, 1024);
+      final spool = File('${dir.path}/synchro-remux-abc-0.mp4');
+      expect(spool.existsSync(), isTrue);
+
+      final bad = await (await client.getUrl(url('/remux/abc/stop'))).close();
+      await bad.drain<void>();
+      expect(bad.statusCode, HttpStatus.methodNotAllowed);
+
+      final forbidden = await (await client.postUrl(
+        url('/remux/abc/stop', {'token': 'x'}),
+      )).close();
+      await forbidden.drain<void>();
+      expect(forbidden.statusCode, HttpStatus.forbidden);
+
+      final ok = await (await client.postUrl(url('/remux/abc/stop'))).close();
+      await ok.drain<void>();
+      expect(ok.statusCode, HttpStatus.noContent);
+      expect(spool.existsSync(), isFalse);
+
+      // Retour au stream : un nouveau remux repart normalement.
+      final (c2, b2, _) = await get(stream, range: 'bytes=0-99');
+      expect(c2, 206);
+      expect(b2.length, 100);
+    },
+    skip: skip,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }

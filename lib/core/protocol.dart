@@ -96,6 +96,7 @@ class HelloMsg extends SyncMessage {
     this.mediaName,
     this.remux,
     this.audioPort,
+    this.mediaSize,
   });
 
   static const kType = 'hello';
@@ -123,6 +124,10 @@ class HelloMsg extends SyncMessage {
   /// Mode 4 : le conteneur doit être réemballé (`/remux/...`) pour le navigateur.
   final bool? remux;
 
+  /// Mode 4 : taille du film de l'hôte en octets (la page compare avec la
+  /// copie locale choisie par l'invité).
+  final int? mediaSize;
+
   /// Mode 3 : port UDP sur lequel l'invité attend l'audio Opus.
   final int? audioPort;
 
@@ -141,6 +146,7 @@ class HelloMsg extends SyncMessage {
     if (mediaPath != null) 'media': mediaPath,
     if (mediaName != null) 'mediaName': mediaName,
     if (remux != null) 'remux': remux,
+    if (mediaSize != null) 'mediaSize': mediaSize,
     if (audioPort != null) 'audioPort': audioPort,
   };
 
@@ -155,6 +161,7 @@ class HelloMsg extends SyncMessage {
     mediaPath: json['media'] as String?,
     mediaName: json['mediaName'] as String?,
     remux: json['remux'] as bool?,
+    mediaSize: (json['mediaSize'] as num?)?.toInt(),
     audioPort: (json['audioPort'] as num?)?.toInt(),
   );
 }

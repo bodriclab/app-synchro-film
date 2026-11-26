@@ -204,6 +204,7 @@ class HostSession extends SyncSession {
         mediaPath: _attachment?.mediaPath,
         mediaName: media.name,
         remux: _attachment?.remux,
+        mediaSize: _attachment?.mediaSize,
       ),
     );
     _attachment?.onGuestHello?.call(hello, ch.remoteAddress);

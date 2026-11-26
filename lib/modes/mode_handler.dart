@@ -38,6 +38,7 @@ class HostAttachment {
     required this.localSource,
     this.mediaPath,
     this.remux,
+    this.mediaSize,
     this.onGuestHello,
     this.onGuestLeft,
     this.onDetach,
@@ -51,6 +52,9 @@ class HostAttachment {
 
   /// Mode 4 : le navigateur doit passer par le remux.
   final bool? remux;
+
+  /// Mode 4 : taille du film servi (transmise dans `hello`).
+  final int? mediaSize;
 
   /// Appelé quand un invité s'est présenté (adresse IP distante incluse).
   final void Function(HelloMsg hello, String? address)? onGuestHello;

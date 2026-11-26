@@ -49,6 +49,10 @@ class RemuxHttpHandler {
   String get streamPath => '/remux/$mediaId.mp4';
   String get infoPath => '/remux/$mediaId/info';
 
+  /// `POST /remux/{id}/stop` : la page passe en lecture locale, le remux
+  /// temps réel devient inutile (la session WebSocket, elle, continue).
+  String get stopPath => '/remux/$mediaId/stop';
+
   Future<RemuxProbe> probe(int startMs) async {
     final cached = _probes[startMs];
     if (cached != null) return cached;
@@ -62,11 +66,18 @@ class RemuxHttpHandler {
   Future<void> call(HttpRequest req) async {
     final res = req.response;
     final path = req.uri.path;
-    if (path != streamPath && path != infoPath) {
+    if (path != streamPath && path != infoPath && path != stopPath) {
       return _status(res, HttpStatus.notFound);
     }
     if (req.uri.queryParameters['token'] != token) {
       return _status(res, HttpStatus.forbidden);
+    }
+    if (path == stopPath) {
+      if (req.method != 'POST') {
+        return _status(res, HttpStatus.methodNotAllowed);
+      }
+      await dispose();
+      return _status(res, HttpStatus.noContent);
     }
     if (req.method != 'GET' && req.method != 'HEAD') {
       return _status(res, HttpStatus.methodNotAllowed);

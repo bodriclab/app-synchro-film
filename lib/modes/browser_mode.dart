@@ -3,6 +3,7 @@ import '../core/protocol.dart';
 import '../core/remux.dart';
 import '../core/session_endpoint.dart';
 import '../core/session_mode.dart';
+import '../net/ios_download_handler.dart';
 import '../net/media_http_handler.dart';
 import '../net/remux_http_handler.dart';
 import '../net/web_client_handler.dart';
@@ -17,7 +18,9 @@ import 'mode_handler.dart';
 /// - `/media/{id}` : le fichier tel quel (HTTP Range) si le navigateur sait
 ///   lire le conteneur (MP4, WebM…) ;
 /// - `/remux/{id}.mp4` : remux FFmpeg à la volée en MP4 fragmenté, sans
-///   réencodage vidéo (MKV, AVI, TS…). L'audio AC3/DTS est converti en AAC.
+///   réencodage vidéo (MKV, AVI, TS…). L'audio AC3/DTS est converti en AAC ;
+/// - `/download` : copie MP4 compatible Safari iOS à télécharger, que
+///   l'invité ouvre ensuite en local (voir [IosDownloadHandler]).
 ///
 /// Le QR code encode directement `http://IP:port/?token=…`.
 class BrowserMode extends ModeHandler {
@@ -59,21 +62,42 @@ class BrowserMode extends ModeHandler {
       tempDir: appTempDir,
       durationMs: ctx.durationMs,
     );
+    final ios = IosDownloadHandler(
+      token: server.token,
+      mediaId: id,
+      media: ctx.media,
+      ffmpeg: ctx.ffmpeg(),
+      direct: direct,
+      videoCodec: () async => (await remux.probe(0)).videoCodec,
+      tempDir: appTempDir,
+    );
+    var size = ctx.media.size;
+    if (size == null) {
+      try {
+        final src = await ctx.opener(ctx.media.uri);
+        size = src.length;
+        await src.close();
+      } catch (_) {}
+    }
     final web = WebClientHandler(token: server.token, loadAsset: ctx.loadAsset);
     server
       ..addRoute('/media/', direct.call)
       ..addRoute('/remux/', remux.call)
+      ..addRoute(IosDownloadHandler.path, ios.call)
       ..addRoute('/', web.call);
     return HostAttachment(
       localSource: ctx.media.uri,
       mediaPath: direct.path,
       remux: needsRemux(ctx.media.name),
+      mediaSize: size,
       onDetach: () async {
         server
           ..removeRoute('/media/')
           ..removeRoute('/remux/')
+          ..removeRoute(IosDownloadHandler.path)
           ..removeRoute('/');
         await remux.dispose();
+        await ios.dispose();
       },
     );
   }
