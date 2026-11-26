@@ -243,4 +243,132 @@ void main() {
     skip: skip,
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  test(
+    'copie locale : téléchargement /download puis lecture locale synchronisée, '
+    'erreur de décodage et retour au stream',
+    () async {
+      final film = await makeTestFilm(
+        dir,
+        name: 'local.mkv',
+        seconds: 60,
+        audioCodec: 'ac3',
+      );
+      final clock = MonotonicClock();
+      final host = HostSession(
+        engine: FakeEngine(now: clock.nowMs, durationMs: 60000),
+        mode: const BrowserMode(),
+        media: MediaRef.file(film),
+        preferredPort: 0,
+        clock: clock,
+        ffmpeg: () => ProcessFfmpegRunner(),
+        loadAsset: (n) => File('web_client/$n').readAsString(),
+      );
+      await host.start();
+      final page = await open(host.endpointFor('127.0.0.1').toUri().toString());
+      try {
+        Future<Map<String, dynamic>> snap() async => jsonDecode(
+          await page.eval(
+            'JSON.stringify({drift: synchroFilm.drift, paused: synchroFilm.video.paused,'
+            ' remux: synchroFilm.useRemux, local: synchroFilm.local,'
+            ' src: synchroFilm.video.currentSrc, msg: document.getElementById("message").hidden'
+            ' ? null : document.getElementById("message").textContent,'
+            ' actions: document.querySelectorAll("#message .actions button").length,'
+            ' back: !document.getElementById("backStream").hidden,'
+            ' trace: synchroFilm.trace.join(" | ")})',
+          ) as String,
+        ) as Map<String, dynamic>;
+        Future<Map<String, dynamic>> until(
+          String label,
+          bool Function(Map<String, dynamic>) ok, {
+          int seconds = 30,
+        }) async {
+          Map<String, dynamic> s = {};
+          for (var i = 0; i < seconds * 4; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            s = await snap();
+            if (ok(s)) return s;
+          }
+          fail('$label : $s');
+        }
+
+        bool synced(Map<String, dynamic> s) =>
+            s['paused'] == false &&
+            s['drift'] != null &&
+            (s['drift'] as num).abs() < 80;
+
+        await until('connexion', (s) => s['remux'] == true);
+        await host.play();
+        await until('stream', synced, seconds: 45);
+
+        // B) copie compatible iOS préparée par l'hôte, puis A) lecture locale.
+        final r = await page.eval(
+          '(async () => {'
+          ' const r = await fetch("/download?token=" + new URLSearchParams(location.search).get("token"));'
+          ' const b = await r.blob();'
+          ' window.__copy = b;'
+          ' synchroFilm.useLocalFile(new File([b], "local_ios.mp4", {type: "video/mp4"}));'
+          ' return r.status + " " + r.headers.get("content-type") + " " + b.size;'
+          '})()',
+          awaitPromise: true,
+        );
+        expect(r as String, startsWith('200 video/mp4 '));
+        var s = await until(
+          'lecture locale',
+          (s) => synced(s) && s['local'] != null,
+        );
+        expect(s['remux'], isFalse);
+        expect(s['src'] as String, startsWith('blob:'));
+        expect(s['back'], isTrue);
+        expect(
+          s['msg'],
+          isNull,
+          reason: 'pas d\'avertissement de taille pour une copie _ios',
+        );
+
+        // Fichier local entièrement « seekable » : un saut de l'hôte est
+        // rattrapé par un saut direct, sans rechargement de flux.
+        await host.seekTo(30000);
+        s = await until('saut en local', synced, seconds: 15);
+        final trace = s['trace'] as String;
+        expect(
+          trace.substring(trace.lastIndexOf(' local ')),
+          isNot(contains('reload')),
+        );
+
+        // Taille différente du film de l'hôte → avertissement non bloquant.
+        await page.eval(
+          'synchroFilm.useLocalFile(new File([window.__copy], "autre.mp4", {type: "video/mp4"}))',
+        );
+        s = await until('avertissement', (s) => s['msg'] != null);
+        expect(s['msg'] as String, contains('même taille'));
+        await until('lecture après avertissement', synced, seconds: 20);
+
+        // Fichier illisible → message clair + 2 actions.
+        await page.eval(
+          'synchroFilm.useLocalFile(new File(["pas une vidéo"], "bad.mp4", {type: "video/mp4"}))',
+        );
+        s = await until(
+          'erreur de décodage',
+          (s) => (s['msg'] as String? ?? '').contains('ne sait pas lire'),
+        );
+        expect(s['actions'], 2);
+
+        // Retour au stream HTTP (remux) : la synchro reprend.
+        await page.eval('synchroFilm.backToStream()');
+        s = await until(
+          'retour au stream',
+          (s) => synced(s) && s['remux'] == true && s['local'] == null,
+          seconds: 45,
+        );
+        expect(s['src'] as String, contains('/remux/'));
+        expect(s['back'], isFalse);
+      } finally {
+        await page.close();
+        await host.close();
+      }
+    },
+    skip: skip,
+    timeout: const Timeout(Duration(minutes: 3)),
+  );
 }

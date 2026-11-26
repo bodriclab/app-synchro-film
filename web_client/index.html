@@ -24,6 +24,13 @@
     <button id="full" title="Plein écran">⛶</button>
     <a id="download" title="Télécharger le film sur cet appareil" hidden>⬇</a>
   </div>
+  <div id="local">
+    <button id="pickLocal" title="Lire une copie du film déjà présente sur cet appareil (sans streaming)">📂 Utiliser un fichier local</button>
+    <input id="localFile" type="file" accept="video/*" hidden>
+    <button id="backStream" hidden>↩ Revenir au stream</button>
+    <a id="iosCopy" class="btn" hidden title="Copie MP4 lisible sur iPhone/iPad, à ouvrir ensuite avec « Utiliser un fichier local »">📱 Télécharger copie compatible iOS</a>
+    <span id="iosState" hidden></span>
+  </div>
 </div>
 <script src="clock.js"></script>
 <script src="app.js"></script>

@@ -31,6 +31,9 @@
   // ---------- État ----------
   let ws = null, state = null, hello = null, durationMs = null;
   let useRemux = false, remuxOffset = 0, remuxLoadedAt = -1e9, loading = false;
+  // Copie locale du film choisie par l'invité (Object URL) : lecture sans
+  // streaming, synchro WebSocket/NTP inchangée.
+  let localUrl = null, localFile = null;
   // seekLead : avance apprise pour compenser le temps qu'un saut met à
   // s'appliquer pendant la lecture (décodage, mise en mémoire tampon).
   const corr = { correcting: false, lastSeekAt: -1e9, drift: null,
@@ -110,10 +113,139 @@
       dl.setAttribute('download', m.mediaName || '');
       dl.hidden = false;
     }
-    useRemux = !!m.remux || SAFARI;
-    if (useRemux) loadRemux(expected());
-    else video.src = m.media + q();
+    const ios = $('iosCopy');
+    ios.href = '/download' + q();
+    ios.hidden = false;
+    if (!localUrl) startStream();
   }
+
+  // ---------- Source : stream HTTP (direct ou remux) ou fichier local ----------
+  function resetCorrection() {
+    corr.correcting = false; corr.measure = false; corr.fastSeeks = 0;
+    corr.holdUntil = 0; corr.seekLead = 0; corr.startLead = 0; corr.lastSeekAt = -1e9;
+    video.playbackRate = 1;
+  }
+  function startStream() {
+    useRemux = !!hello.remux || SAFARI;
+    if (useRemux) loadRemux(expected());
+    else video.src = hello.media + q();
+  }
+  function clearSource() {
+    video.pause();
+    video.removeAttribute('src');
+    video.load(); // coupe la requête HTTP en cours
+  }
+  function revokeLocal() {
+    if (localUrl) URL.revokeObjectURL(localUrl);
+    localUrl = null;
+    localFile = null;
+  }
+
+  function useLocalFile(file) {
+    if (!file) return;
+    const wasRemux = useRemux && !localUrl;
+    clearSource();
+    // Le remux temps réel de l'hôte devient inutile (le WebSocket reste ouvert).
+    if (wasRemux && hello) {
+      fetch('/remux/' + mediaId() + '/stop' + q(), { method: 'POST' }).catch(() => {});
+    }
+    revokeLocal();
+    localFile = file;
+    localUrl = URL.createObjectURL(file);
+    useRemux = false;
+    remuxOffset = 0;
+    resetCorrection();
+    log('local ' + file.name + ' ' + file.size);
+    video.src = localUrl;
+    if (subs) applySubs();
+    $('backStream').hidden = false;
+    $('message').hidden = true;
+    const hostSize = hello && hello.mediaSize;
+    if (hostSize && file.size !== hostSize && !/_ios\.mp4$/i.test(file.name)) {
+      showMessage('Attention : ce fichier n\'a pas la même taille que le film de l\'hôte '
+        + '(autre version ?). La synchro continue, vérifiez qu\'il s\'agit du même film.', 8000);
+    }
+    // Choix du fichier = geste utilisateur : on tente de démarrer tout de suite.
+    if (state && state.playing) {
+      video.play().then(() => { $('unlock').hidden = true; })
+        .catch(() => { $('unlock').hidden = false; });
+    }
+  }
+
+  function backToStream() {
+    if (!localUrl) return;
+    clearSource();
+    revokeLocal();
+    resetCorrection();
+    $('backStream').hidden = true;
+    $('message').hidden = true;
+    log('stream');
+    if (hello) startStream();
+    if (subs) applySubs();
+  }
+
+  function showLocalError() {
+    const m = $('message');
+    m.textContent = 'Ce navigateur ne sait pas lire ce fichier (format ou codec non pris en charge). ';
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    const dl = document.createElement('button');
+    dl.textContent = '📱 Télécharger la copie compatible';
+    dl.onclick = () => { m.hidden = true; $('iosCopy').click(); };
+    const back = document.createElement('button');
+    back.textContent = '↩ Revenir au stream';
+    back.onclick = backToStream;
+    actions.append(dl, back);
+    m.appendChild(actions);
+    clearTimeout(msgTimer);
+    m.hidden = false;
+  }
+
+  // ---------- Copie compatible iOS préparée par l'hôte (/download) ----------
+  let iosPoll = null;
+  function showIos(st) {
+    const el = $('iosState'), a = $('iosCopy');
+    if (st.name) a.setAttribute('download', st.name);
+    clearTimeout(iosPoll);
+    if (st.state === 'preparing') {
+      el.textContent = 'L\'hôte prépare la copie…'
+        + (typeof st.progress === 'number' ? ' ' + Math.round(st.progress * 100) + ' %' : '');
+      iosPoll = setTimeout(() => iosRequest('status'), 1000);
+    } else if (st.state === 'ready') {
+      el.textContent = st.native ? 'Film déjà compatible : téléchargement direct.' : 'Copie prête.';
+      a.classList.add('ready');
+      a.dataset.ready = '1';
+    } else if (st.state === 'error') {
+      el.textContent = 'Préparation impossible : ' + (st.error || 'erreur');
+    }
+    el.hidden = st.state === 'idle';
+  }
+  async function iosRequest(kind, thenDownload) {
+    try {
+      const r = await fetch('/download/' + kind + q(), kind === 'prepare' ? { method: 'POST' } : {});
+      const st = await r.json();
+      const wasReady = $('iosCopy').dataset.ready === '1';
+      showIos(st);
+      if (st.state === 'ready' && !wasReady && thenDownload) $('iosCopy').click();
+      else if (st.state === 'ready' && !wasReady) showMessage('Copie compatible iOS prête : touchez « Télécharger copie compatible iOS ».', 6000);
+    } catch (e) {
+      const el = $('iosState');
+      el.textContent = 'Hôte injoignable.';
+      el.hidden = false;
+    }
+  }
+  $('iosCopy').addEventListener('click', (e) => {
+    if ($('iosCopy').dataset.ready === '1') return; // le lien télécharge
+    e.preventDefault();
+    iosRequest('prepare', true);
+  });
+  $('pickLocal').onclick = () => $('localFile').click();
+  $('localFile').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    useLocalFile(f);
+  });
+  $('backStream').onclick = backToStream;
 
   // ---------- Sous-titres choisis par l'hôte : WebVTT dans <track> ----------
   // En flux réemballé, le temps 0 de la vidéo = remuxOffset dans le film :
@@ -215,6 +347,8 @@
   }
 
   video.addEventListener('error', () => {
+    if (localUrl) { showLocalError(); return; }
+    if (!video.getAttribute('src')) return; // source retirée volontairement
     if (!useRemux) {
       useRemux = true;
       showMessage('Format non lu directement : conversion à la volée…', 4000);
@@ -326,7 +460,8 @@
       if (corr.drift !== null) parts.push('écart ' + Math.round(corr.drift) + ' ms');
       if (corr.correcting) parts.push('correction ' + Math.round(video.playbackRate * 100) + ' %');
       if (clock.rtt !== null) parts.push('RTT ' + Math.round(clock.rtt) + ' ms');
-      if (useRemux) parts.push('conversion MP4');
+      if (localUrl) parts.push('fichier local');
+      else if (useRemux) parts.push('conversion MP4');
       $('status').textContent = parts.join(' · ');
     }
   }
@@ -360,7 +495,9 @@
       const t = video.querySelector('track');
       if (!t || !t.track.cues) return null;
       return Array.from(t.track.cues).map((c) => ({ start: c.startTime, end: c.endTime, text: c.text, mode: t.track.mode }));
-    }, get useRemux() { return useRemux; }, get remuxOffset() { return remuxOffset; }, video, cmd };
+    }, get useRemux() { return useRemux; }, get remuxOffset() { return remuxOffset; },
+    get local() { return localFile ? { name: localFile.name, size: localFile.size } : null; },
+    useLocalFile, backToStream, video, cmd };
 
   setInterval(() => { correct(); render(); }, 250);
   connect();

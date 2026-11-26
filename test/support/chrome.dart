@@ -25,17 +25,22 @@ class ChromePage {
   final Map<int, Completer<Map<String, dynamic>>> _pending = {};
   int _id = 0;
 
-  Future<dynamic> eval(String expr) async {
+  /// Évalue [expr] ; avec [awaitPromise], attend la promesse renvoyée.
+  Future<dynamic> eval(String expr, {bool awaitPromise = false}) async {
     final id = ++_id;
     final c = _pending[id] = Completer();
     _ws.add(
       jsonEncode({
         'id': id,
         'method': 'Runtime.evaluate',
-        'params': {'expression': expr, 'returnByValue': true},
+        'params': {
+          'expression': expr,
+          'returnByValue': true,
+          if (awaitPromise) 'awaitPromise': true,
+        },
       }),
     );
-    final r = await c.future.timeout(const Duration(seconds: 10));
+    final r = await c.future.timeout(Duration(seconds: awaitPromise ? 60 : 10));
     return (r['result'] as Map)['result']?['value'];
   }
 
