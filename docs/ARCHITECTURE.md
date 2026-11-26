@@ -132,3 +132,18 @@ docs/
 5. ✅ Pipeline FFmpeg → PCM → Opus/UDP + compensation de latence + mode 3.
 6. ✅ Mode 5 : PCM sur WebSocket + Web Audio programmé (réutilise le pipeline du mode 3).
 7. À faire : validation sur appareils réels, latence WASAPI sous Windows, reconnexion auto, service au premier plan Android.
+
+## 10. Ajouts v0.6.0 (modules)
+
+- `lib/core/subtitles.dart` : gestion du choix de sous‑titres et transmission du message **subs** du protocole (hôte → invité).  
+- `lib/core/subtitle_text.dart` : décodage UTF‑8/UTF‑16/Latin‑1, conversion SRT → WebVTT et application d’un décalage (shift) aux fichiers WebVTT.  
+- `lib/net/subtitle_http_handler.dart` : service HTTP pour `/subs/file` (flux brut) et `/subs/track.vtt?shift=ms` (balise `<track>`), extraction via FFmpeg des pistes intégrées et ASS.  
+- `lib/player/subtitle_engine.dart` : interface de rendu des sous‑titres, implémentée par **MediaKitEngine** à l’aide de la `track-list` de MPV.  
+- `lib/net/remux_spool.dart` : écriture du remux dans un fichier temporaire afin de servir les requêtes **Range** de Safari, estimation de la taille, remplissage via boîte MP4 « free », pause de FFmpeg à 48 Mo d’avance.  
+- `lib/core/remux.dart` : remux avec downmix (sans normalisation) + limiteur, options `-tag:v hvc1` et `-noaccurate_seek`.  
+- `lib/core/audio_gain.dart` : ajustement du gain audio avec écrêtage doux, mode 3.  
+- `lib/platform/settings_store.dart` : stockage persistant des réglages sous forme de JSON.  
+- `lib/transfer/transfer_server.dart` (`TransferServer`) : serveur de transfert exposant `/` (page d’accueil), `/info` et `/media/f` avec prise en charge du header **Range**.  
+- `lib/transfer/downloader.dart` : téléchargement avec reprise via **Range**, nouvelles tentatives en cas d’échec.  
+- `lib/transfer/download_sink.dart` (`FileDownloadSink`) : écriture en fichiers temporaires `.part` accompagnés du méta‑fichier `.part.json`.  
+- `lib/transfer/android_download_sink.dart` + `DownloadChannel.kt` : intégration Android — sauvegarde dans **MediaStore** (dossier Téléchargements/SynchroFilm) et communication via le canal de téléchargement.
