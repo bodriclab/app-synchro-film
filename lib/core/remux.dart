@@ -21,6 +21,18 @@ const Set<String> kBrowserContainers = {
 /// TrueHD…) sont convertis en AAC — audio seulement, coût CPU faible.
 const Set<String> kBrowserAudioCodecs = {'aac', 'mp3', 'opus', 'flac'};
 
+/// Safari (macOS/iOS) ne lit de façon fiable que l'AAC et le MP3 dans du MP4
+/// fragmenté : l'Opus, le FLAC, l'AC3 et le DTS y sont convertis en AAC.
+const Set<String> kSafariAudioCodecs = {'aac', 'mp3'};
+
+/// Downmix multicanal → stéréo sans la normalisation par défaut de
+/// swresample, qui baisse le canal central (les dialogues) d'environ 10 dB
+/// sur une piste 5.1. Le limiteur évite la saturation quand tous les canaux
+/// sont forts. Sans effet notable sur une source déjà stéréo.
+const String kDownmixFilter =
+    'aresample=ochl=stereo:rematrix_maxval=1000,'
+    'alimiter=limit=0.95:attack=2:release=50:level=false';
+
 String extensionOf(String name) {
   final dot = name.lastIndexOf('.');
   return dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
@@ -31,7 +43,12 @@ bool needsRemux(String name) => !kBrowserContainers.contains(extensionOf(name));
 
 /// Résultat de la sonde (premier paquet après le point de départ).
 class RemuxProbe {
-  const RemuxProbe({required this.offsetMs, this.videoCodec, this.audioCodec});
+  const RemuxProbe({
+    required this.offsetMs,
+    this.videoCodec,
+    this.audioCodec,
+    this.safari = false,
+  });
 
   /// Position dans le film correspondant au temps 0 du flux réemballé
   /// (keyframe précédant le point demandé).
@@ -39,14 +56,29 @@ class RemuxProbe {
   final String? videoCodec;
   final String? audioCodec;
 
+  /// Client Safari / iOS : liste de codecs audio plus restreinte.
+  final bool safari;
+
   bool get transcodeAudio =>
-      audioCodec != null && !kBrowserAudioCodecs.contains(audioCodec);
+      audioCodec != null &&
+      !(safari ? kSafariAudioCodecs : kBrowserAudioCodecs).contains(audioCodec);
+
+  /// HEVC : étiquette `hvc1` obligatoire pour Safari (ffmpeg écrit `hev1`).
+  bool get hevc => videoCodec == 'hevc' || videoCodec == 'h265';
+
+  RemuxProbe forClient({required bool safari}) => RemuxProbe(
+    offsetMs: offsetMs,
+    videoCodec: videoCodec,
+    audioCodec: audioCodec,
+    safari: safari,
+  );
 
   Map<String, dynamic> toJson() => {
     'offsetMs': offsetMs,
     'videoCodec': videoCodec,
     'audioCodec': audioCodec,
     'transcodeAudio': transcodeAudio,
+    'hevc': hevc,
   };
 }
 
@@ -79,8 +111,11 @@ List<String> remuxArgs(
   String input,
   int startMs, {
   bool transcodeAudio = false,
+  bool hevc = false,
 }) => [
-  if (startMs > 0) ...['-ss', _sec(startMs)],
+  // `-noaccurate_seek` : l'audio réencodé démarre à la même image clé que la
+  // vidéo copiée (sinon il manque ~1 à 4 s de son au début de chaque flux).
+  if (startMs > 0) ...['-noaccurate_seek', '-ss', _sec(startMs)],
   '-i',
   input,
   '-map',
@@ -91,7 +126,10 @@ List<String> remuxArgs(
   '-dn',
   '-c:v',
   'copy',
+  if (hevc) ...['-tag:v', 'hvc1'],
   if (transcodeAudio) ...[
+    '-af',
+    kDownmixFilter,
     '-c:a',
     'aac',
     '-b:a',
@@ -119,6 +157,8 @@ List<String> pcmArgs(String input, int startMs) => [
   '-dn',
   '-map',
   '0:a:0',
+  '-af',
+  kDownmixFilter,
   '-ac',
   '2',
   '-ar',

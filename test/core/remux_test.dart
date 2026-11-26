@@ -49,7 +49,7 @@ void main() {
 
   test('arguments FFmpeg', () {
     final r = remuxArgs('in.mkv', 30000);
-    expect(r.sublist(0, 2), ['-ss', '30.000']);
+    expect(r.sublist(0, 3), ['-noaccurate_seek', '-ss', '30.000']);
     expect(r, containsAllInOrder(['-c:v', 'copy', '-c:a', 'copy']));
     expect(r, contains('frag_keyframe+empty_moov+default_base_moof'));
     expect(r.last, '{out}');
@@ -58,6 +58,16 @@ void main() {
       containsAllInOrder(['-c:a', 'aac']),
     );
     expect(remuxArgs('in.mkv', 0).first, '-i');
+    expect(
+      remuxArgs('in.mkv', 0, hevc: true),
+      containsAllInOrder(['-c:v', 'copy', '-tag:v', 'hvc1']),
+    );
+    expect(remuxArgs('in.mkv', 0), isNot(contains('-tag:v')));
+    expect(
+      remuxArgs('in.mkv', 0, transcodeAudio: true),
+      containsAllInOrder(['-af', kDownmixFilter, '-c:a', 'aac']),
+    );
+    expect(pcmArgs('in.mkv', 0), containsAllInOrder(['-af', kDownmixFilter]));
     expect(
       probeArgs('in.mkv', 1500),
       containsAllInOrder(['-ss', '1.500', '-copyts']),
