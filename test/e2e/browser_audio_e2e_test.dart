@@ -112,6 +112,17 @@ void main() {
           '200',
         );
 
+        // Volume de l'invité à 200 % : limiteur branché, synchro conservée.
+        await page.eval('synchroAudio.setGain(2)');
+        expect(await page.eval('synchroAudio.gain'), 2);
+        expect(await page.eval('synchroAudio.routedThroughLimiter'), isTrue);
+        expect(
+          await page.eval("localStorage.getItem('synchroFilm.audioGain')"),
+          '2',
+        );
+        await Future<void>.delayed(const Duration(seconds: 1));
+        check('volume 200 %', await measure(15));
+
         // La page pilote aussi : pause depuis le navigateur.
         await page.eval("synchroAudio.cmd('pause')");
         await Future<void>.delayed(const Duration(milliseconds: 600));

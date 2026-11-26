@@ -13,6 +13,7 @@ import 'package:app_synchro_film/net/session/guest_session.dart';
 import 'package:app_synchro_film/net/session/host_session.dart';
 import 'package:app_synchro_film/platform/audio/opus_frames.dart';
 import 'package:app_synchro_film/platform/audio/output_latency.dart';
+import 'package:app_synchro_film/platform/settings_store.dart';
 import 'package:app_synchro_film/platform/audio/pcm_output.dart';
 import 'package:app_synchro_film/platform/ffmpeg_runner.dart';
 import 'package:app_synchro_film/player/virtual_engine.dart';
@@ -109,6 +110,7 @@ void main() {
               autoLatencyMs: autoLatency,
             ),
             store: LatencyOffsetStore(directory: () async => dir),
+            settings: SettingsStore(directory: () async => dir),
           ),
         ),
       );

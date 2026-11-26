@@ -7,7 +7,9 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../net/session/sync_session.dart';
 import '../core/session_mode.dart';
+import '../core/audio_gain.dart';
 import '../modes/audio/audio_latency_control.dart';
+import '../platform/settings_store.dart';
 import '../net/session/guest_session.dart';
 import '../player/media_kit_engine.dart';
 import '../player/playback_engine.dart';
@@ -31,6 +33,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _showControls = true;
   double? _dragMs;
   bool _muted = false;
+  bool _fullscreen = false;
+  Timer? _hideTimer;
 
   /// Hôte d'un mode « son chez l'invité » (3, 5) : il peut couper son propre son.
   bool get _canMuteHost =>
@@ -47,6 +51,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _engine = _session.engine;
     final e = _engine;
     if (e is MediaKitEngine) _video = VideoController(e.player);
+    if (e is MediaKitEngine) _restoreAudio(e);
     _session.addListener(_refresh);
     // Rafraîchit la barre de progression (4 Hz suffit, économie batterie).
     _uiTimer = Timer.periodic(
@@ -59,8 +64,50 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (mounted) setState(() {});
   }
 
+  static const _gainKey = 'player.gain';
+  static const _boostKey = 'player.dialogBoost';
+
+  Future<void> _restoreAudio(MediaKitEngine e) async {
+    final st = SettingsStore.instance;
+    final gain = await st.getDouble(_gainKey, 1.0);
+    final boost = await st.getBool(_boostKey, false);
+    if (gain != 1.0) await e.setGain(gain);
+    if (boost) await e.setDialogBoost(true);
+  }
+
+  // ---------- Plein écran ----------
+  Future<void> _setFullscreen(bool on) async {
+    if (on == _fullscreen) return;
+    setState(() {
+      _fullscreen = on;
+      _showControls = !on;
+    });
+    if (on) {
+      await defaultEnterNativeFullscreen();
+    } else {
+      _hideTimer?.cancel();
+      await defaultExitNativeFullscreen();
+    }
+  }
+
+  /// En plein écran, les commandes réapparaissent au toucher puis se
+  /// masquent seules au bout de 4 s pendant la lecture.
+  void _toggleControls() {
+    setState(() => _showControls = !_showControls);
+    _hideTimer?.cancel();
+    if (_fullscreen && _showControls) {
+      _hideTimer = Timer(const Duration(seconds: 4), () {
+        if (mounted && _fullscreen && _session.isPlaying && _dragMs == null) {
+          setState(() => _showControls = false);
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
+    _hideTimer?.cancel();
+    if (_fullscreen) defaultExitNativeFullscreen();
     _uiTimer?.cancel();
     _session.removeListener(_refresh);
     _session.close().whenComplete(_engine.dispose);
@@ -76,6 +123,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _session.seekBy(-10000);
       case LogicalKeyboardKey.arrowRight:
         _session.seekBy(10000);
+      case LogicalKeyboardKey.keyF:
+        _setFullscreen(!_fullscreen);
+      case LogicalKeyboardKey.escape when _fullscreen:
+        _setFullscreen(false);
       default:
         return KeyEventResult.ignored;
     }
@@ -84,31 +135,47 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Focus(
-        autofocus: true,
-        onKeyEvent: _onKey,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _showControls = !_showControls),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (_video != null)
-                Video(
-                  controller: _video!,
-                  controls: NoVideoControls,
-                  // En arrière-plan on continue : sinon le pair dériverait.
-                  pauseUponEnteringBackgroundMode: false,
-                )
-              else
-                _AudioOnlyPanel(session: _session),
-              if (_showControls) ..._buildOverlay(context),
-            ],
+    return PopScope(
+      // Retour (Android) en plein écran : on sort du plein écran d'abord.
+      canPop: !_fullscreen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _fullscreen) _setFullscreen(false);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Focus(
+          autofocus: true,
+          onKeyEvent: _onKey,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleControls,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (_video != null)
+                  Video(
+                    controller: _video!,
+                    controls: NoVideoControls,
+                    // En arrière-plan on continue : sinon le pair dériverait.
+                    pauseUponEnteringBackgroundMode: false,
+                  )
+                else
+                  _AudioOnlyPanel(session: _session),
+                if (_showControls) ..._buildOverlay(context),
+              ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  void _openSoundSheet() {
+    final e = _engine as MediaKitEngine;
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) =>
+          _SoundSheet(engine: e, gainKey: _gainKey, boostKey: _boostKey),
     );
   }
 
@@ -124,20 +191,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _session.controller.expectedPositionMs() ??
         _engine.positionMs;
     return [
-      Positioned(
-        top: 0,
-        left: 0,
-        right: 0,
-        child: SafeArea(
-          child: Row(
-            children: [
-              const BackButton(color: Colors.white),
-              Expanded(child: _StatusChip(session: _session)),
-            ],
+      if (!_fullscreen)
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            child: Row(
+              children: [
+                const BackButton(color: Colors.white),
+                Expanded(child: _StatusChip(session: _session)),
+              ],
+            ),
           ),
         ),
-      ),
-      if (_session.fileMatch == false)
+      if (_session.fileMatch == false && !_fullscreen)
         const Positioned(
           top: 64,
           left: 16,
@@ -218,6 +286,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       icon: const Icon(Icons.forward_10),
                       onPressed: () => _session.seekBy(10000),
                     ),
+                    if (_engine is MediaKitEngine && !_muted)
+                      IconButton(
+                        color: Colors.white,
+                        tooltip: 'Volume et dialogues',
+                        icon: const Icon(Icons.tune),
+                        onPressed: _openSoundSheet,
+                      ),
+                    if (_video != null)
+                      IconButton(
+                        color: Colors.white,
+                        tooltip: _fullscreen
+                            ? 'Quitter le plein écran'
+                            : 'Passer en plein écran',
+                        icon: Icon(
+                          _fullscreen
+                              ? Icons.fullscreen_exit
+                              : Icons.fullscreen,
+                        ),
+                        onPressed: () => _setFullscreen(!_fullscreen),
+                      ),
                     if (_canMuteHost)
                       IconButton(
                         color: Colors.white,
@@ -238,6 +326,77 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// Réglages du son local : volume jusqu'à 300 % et renfort des dialogues.
+class _SoundSheet extends StatefulWidget {
+  const _SoundSheet({
+    required this.engine,
+    required this.gainKey,
+    required this.boostKey,
+  });
+
+  final MediaKitEngine engine;
+  final String gainKey;
+  final String boostKey;
+
+  @override
+  State<_SoundSheet> createState() => _SoundSheetState();
+}
+
+class _SoundSheetState extends State<_SoundSheet> {
+  late double _gain = widget.engine.gain;
+  late bool _boost = widget.engine.dialogBoost;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = (_gain * 100).round();
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Son', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Text('Volume : $pct %'),
+            Slider(
+              min: 0,
+              max: kMaxGain,
+              divisions: 30,
+              value: _gain,
+              label: '$pct %',
+              onChanged: (v) {
+                setState(() => _gain = v);
+                widget.engine.setGain(v);
+              },
+              onChangeEnd: (v) => SettingsStore.instance.set(widget.gainKey, v),
+            ),
+            const Text(
+              'Au-delà de 100 %, le son est amplifié (utile si l\'appareil '
+              'est moins fort que l\'autre).',
+              style: TextStyle(fontSize: 12),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Renforcer les dialogues'),
+              subtitle: const Text(
+                'Rapproche les passages faibles et forts : les voix '
+                'ressortent mieux, surtout sur un film 5.1.',
+              ),
+              value: _boost,
+              onChanged: (v) {
+                setState(() => _boost = v);
+                widget.engine.setDialogBoost(v);
+                SettingsStore.instance.set(widget.boostKey, v);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -370,6 +529,20 @@ class _LatencyCard extends StatelessWidget {
             const Text(
               'Le son arrive après l\'image → glissez vers la droite.\n'
               'Réglage mémorisé pour cette sortie audio.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            Text('Volume : ${(control.gain * 100).round()} %'),
+            Slider(
+              min: kMinGain,
+              max: kMaxGain,
+              divisions: 25,
+              value: control.gain,
+              label: '${(control.gain * 100).round()} %',
+              onChanged: control.setGain,
+            ),
+            const Text(
+              'Au-delà de 100 %, le son est amplifié sans saturer.',
               style: TextStyle(fontSize: 12),
             ),
             if (player != null)

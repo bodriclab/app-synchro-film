@@ -11,7 +11,7 @@ button.big { display: block; width: 100%; margin: 1.2rem 0; padding: 1.4rem; fon
 #time { font-variant-numeric: tabular-nums; opacity: .8; }
 #controls { display: flex; gap: .6rem; justify-content: center; margin: 1rem 0; }
 #controls button { min-width: 4.5rem; font-size: 1.2rem; }
-#offset { margin-top: 1.5rem; padding: 1rem; background: #1d1d1d; border-radius: .8rem; }
-#offset input { width: 100%; margin: .8rem 0; }
+#offset, #volume { margin-top: 1.5rem; padding: 1rem; background: #1d1d1d; border-radius: .8rem; }
+#offset input, #volume input { width: 100%; margin: .8rem 0; }
 .hint { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; opacity: .7; }
 #message { color: #ffb74d; }

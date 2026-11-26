@@ -18,6 +18,7 @@
   const MAX_SKEW = 0.01;    // correction douce : vitesse ±1 % max (écart rattrapé en ~1 s)
   const FADE = 96;          // échantillons (2 ms) de fondu aux discontinuités
   const OFFSET_KEY = 'synchroFilm.audioOffsetMs';
+  const GAIN_KEY = 'synchroFilm.audioGain';
   const token = new URLSearchParams(location.search).get('token') || '';
   const $ = (id) => document.getElementById(id);
   const now = () => performance.now();
@@ -26,6 +27,12 @@
 
   let ws = null, pcmWs = null, state = null, durationMs = null, ctx = null, master = null;
   let manualMs = clampOffset(Number(localStorage.getItem(OFFSET_KEY)) || 0);
+  // Volume de cet appareil (50 à 300 %). Au-delà de 100 %, un limiteur
+  // (DynamicsCompressor) évite la saturation ; il n'est branché qu'alors
+  // (il ajoute ~6 ms de latence).
+  let gain = clampGain(Number(localStorage.getItem(GAIN_KEY)) || 1);
+  let limiter = null;
+  function clampGain(v) { return Math.max(0.5, Math.min(3, Math.round(v * 10) / 10)); }
   const stats = { received: 0, scheduled: 0, late: 0, concealed: 0, missing: 0,
     resyncs: 0, flushes: 0, maxContigErrMs: 0 };
 
@@ -233,7 +240,11 @@
       if (!AC) { showMessage('Ce navigateur ne gère pas Web Audio.'); return; }
       try { ctx = new AC({ sampleRate: RATE, latencyHint: 'interactive' }); } catch (e) { ctx = new AC(); }
       master = ctx.createGain();
-      master.connect(ctx.destination);
+      limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -3; limiter.knee.value = 0; limiter.ratio.value = 20;
+      limiter.attack.value = 0.003; limiter.release.value = 0.1;
+      limiter.connect(ctx.destination);
+      applyGain();
       ctx.onstatechange = refreshUi;
     }
     // Un tampon silencieux démarré dans le geste débloque iOS.
@@ -242,6 +253,20 @@
     s.connect(ctx.destination);
     s.start(0);
     ctx.resume().then(refreshUi, refreshUi);
+  }
+
+  function applyGain() {
+    if (!ctx) return;
+    master.gain.value = gain;
+    master.disconnect();
+    master.connect(gain > 1 ? limiter : ctx.destination);
+  }
+  function setGain(v) {
+    gain = clampGain(v);
+    localStorage.setItem(GAIN_KEY, String(gain));
+    $('gain').value = gain;
+    $('gainValue').textContent = Math.round(gain * 100) + ' %';
+    applyGain();
   }
 
   // ---------- Interface ----------
@@ -273,6 +298,8 @@
   $('fwd').addEventListener('click', () => cmd('seek', expected() + 10000));
   $('slider').addEventListener('input', (e) => setOffset(Number(e.target.value)));
   $('reset').addEventListener('click', () => setOffset(0));
+  $('gain').addEventListener('input', (e) => setGain(Number(e.target.value)));
+  setGain(gain);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && ctx) ctx.resume(); });
   setOffset(manualMs);
   if (!token) showMessage('Lien incomplet : scannez le QR code de l\'hôte.');
@@ -283,7 +310,8 @@
 
   // Point d'accès pour les tests automatisés.
   window.synchroAudio = {
-    clock, stats, unlock, cmd, setOffset,
+    clock, stats, unlock, cmd, setOffset, setGain, get gain() { return gain; },
+    get routedThroughLimiter() { return gain > 1; },
     get ctx() { return ctx; }, get state() { return state; }, get frames() { return frames.size; },
     // Position du son en cours (ms du film) et instant d'écoute (ms epoch).
     probe() {

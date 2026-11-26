@@ -1,3 +1,5 @@
+import '../../core/audio_gain.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -45,6 +47,10 @@ class AudioGuestPlayer {
   Timer? _timer;
   int _lastUnderruns = 0;
   bool _lastWasAudio = false;
+
+  /// Gain de l'invité (1.0 = inchangé), avec écrêtage doux.
+  double gain = 1.0;
+
   int framesPlayed = 0;
 
   /// Position (ms) de la dernière trame réellement jouée.
@@ -78,12 +84,12 @@ class AudioGuestPlayer {
     for (final index in plan) {
       final p = buffer.take(index);
       if (p != null) {
-        output.push(pcm16ToFloat(decode(p.payload)));
+        output.push(applyGain(pcm16ToFloat(decode(p.payload)), gain));
         lastPlayedPositionMs = p.positionMs;
         _lastWasAudio = true;
         framesPlayed++;
       } else if (_lastWasAudio) {
-        output.push(pcm16ToFloat(decode(null))); // masquage Opus
+        output.push(applyGain(pcm16ToFloat(decode(null)), gain)); // masquage
         _lastWasAudio = false;
         framesConcealed++;
       } else {
