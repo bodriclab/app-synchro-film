@@ -1,7 +1,9 @@
+import 'package:app_synchro_film/core/subtitles.dart';
 import 'package:app_synchro_film/player/playback_engine.dart';
+import 'package:app_synchro_film/player/subtitle_engine.dart';
 
 /// Faux lecteur piloté par une horloge simulée.
-class FakeEngine implements PlaybackEngine {
+class FakeEngine implements PlaybackEngine, SubtitleEngine {
   FakeEngine({required this.now, this.durationMs = 3600000});
 
   int Function() now;
@@ -9,6 +11,18 @@ class FakeEngine implements PlaybackEngine {
   int? durationMs;
   String? source;
   final List<String> calls = [];
+
+  /// Pistes intégrées simulées et sous-titres affichés (avec texte externe).
+  List<SubtitleSelection> embedded = const [];
+  final List<(SubtitleSelection, String?)> shownSubtitles = [];
+
+  @override
+  Future<List<SubtitleSelection>> embeddedSubtitles() async => embedded;
+
+  @override
+  Future<void> showSubtitle(SubtitleSelection selection, {String? text}) async {
+    shownSubtitles.add((selection, text));
+  }
 
   bool _playing = false;
   double _rate = 1.0;

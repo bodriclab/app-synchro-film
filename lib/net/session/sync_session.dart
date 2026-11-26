@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/session_mode.dart';
+import '../../core/subtitles.dart';
 import '../../modes/mode_handler.dart';
 import '../../player/playback_engine.dart';
+import '../../player/subtitle_engine.dart';
 import '../../player/sync_controller.dart';
 
 enum SessionStatus {
@@ -77,6 +79,40 @@ abstract class SyncSession extends ChangeNotifier {
     final current = controller.expectedPositionMs() ?? engine.positionMs;
     final target = current + deltaMs;
     return seekTo(target < 0 ? 0 : target);
+  }
+
+  // ---------- Sous-titres ----------
+  SubtitleSelection _subtitle = const SubtitleSelection.off();
+
+  /// Sous-titres affichés sur cet appareil.
+  SubtitleSelection get subtitle => _subtitle;
+
+  /// Pistes intégrées du film (vide si le lecteur ne gère pas les sous-titres).
+  Future<List<SubtitleSelection>> embeddedSubtitles() async {
+    final Object e = engine;
+    return e is SubtitleEngine ? e.embeddedSubtitles() : const [];
+  }
+
+  /// Affiche [selection] localement. L'hôte le transmet en plus à l'invité
+  /// (voir [HostSession]). [text] : contenu d'un fichier externe.
+  Future<void> selectSubtitle(SubtitleSelection selection, {String? text}) =>
+      applySubtitle(selection, text: text);
+
+  @protected
+  Future<void> applySubtitle(
+    SubtitleSelection selection, {
+    String? text,
+  }) async {
+    _subtitle = selection;
+    notifyListeners();
+    final Object e = engine;
+    if (e is SubtitleEngine) {
+      try {
+        await e.showSubtitle(selection, text: text);
+      } catch (_) {
+        // piste illisible : la lecture continue sans sous-titres
+      }
+    }
   }
 
   Future<void> close();

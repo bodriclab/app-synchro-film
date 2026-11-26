@@ -8,14 +8,17 @@ import '../../core/monotonic_clock.dart';
 import '../../core/playback_arbiter.dart';
 import '../../core/protocol.dart';
 import '../../core/session_endpoint.dart';
+import '../../core/subtitles.dart';
 import '../../modes/mode_handler.dart';
 import '../../platform/ffmpeg_runner.dart';
+import '../../platform/temp_dir.dart';
 import '../../platform/media_access.dart';
 import '../../platform/web_assets.dart';
 import '../web_client_handler.dart';
 import '../../player/sync_controller.dart';
 import '../discovery.dart';
 import '../host_server.dart';
+import '../subtitle_http_handler.dart';
 import '../peer_channel.dart';
 import 'sync_session.dart';
 
@@ -69,6 +72,16 @@ class HostSession extends SyncSession {
   late final SyncController controller;
 
   FileFingerprint? fingerprint;
+  late final SubtitleHttpHandler _subs = SubtitleHttpHandler(
+    token: token,
+    media: media,
+    ffmpeg: ffmpeg,
+    current: () =>
+        (selection: subtitle, text: _subtitleText, rev: _subtitleRev),
+    tempDir: appTempDir,
+  );
+  String? _subtitleText;
+  int _subtitleRev = 0;
   PeerChannel? _guest;
   StreamSubscription<PeerChannel>? _guestsSub;
   StreamSubscription<SyncMessage>? _msgSub;
@@ -93,6 +106,7 @@ class HostSession extends SyncSession {
         fingerprint = await FileFingerprint.computeWith(media.uri, opener);
       }
       await server.start();
+      server.addRoute('/subs/', _subs.call);
       final attachment = await mode.attachHost(
         HostContext(
           server: server,
@@ -160,7 +174,7 @@ class HostSession extends SyncSession {
         _onHello(ch, msg);
       case CmdMsg():
         _apply(msg);
-      case StateMsg() || PongMsg() || ErrorMsg():
+      case StateMsg() || PongMsg() || ErrorMsg() || SubsMsg():
         break; // non attendus côté hôte
     }
   }
@@ -194,6 +208,7 @@ class HostSession extends SyncSession {
     );
     _attachment?.onGuestHello?.call(hello, ch.remoteAddress);
     ch.send(StateMsg(arbiter.state));
+    if (!subtitle.isOff) ch.send(SubsMsg(subtitle, rev: _subtitleRev));
     update(
       status: SessionStatus.connected,
       peerName: hello.deviceName,
@@ -219,6 +234,18 @@ class HostSession extends SyncSession {
       notifyListeners();
     }
     _guest?.send(StateMsg(arbiter.state));
+  }
+
+  /// Choix de l'hôte : affiché ici et transmis à l'invité (app ou page web).
+  @override
+  Future<void> selectSubtitle(
+    SubtitleSelection selection, {
+    String? text,
+  }) async {
+    _subtitleText = selection.kind == SubtitleKind.external ? text : null;
+    _subtitleRev++;
+    await applySubtitle(selection, text: text);
+    _guest?.send(SubsMsg(selection, rev: _subtitleRev));
   }
 
   @override

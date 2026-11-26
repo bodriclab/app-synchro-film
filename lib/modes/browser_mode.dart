@@ -1,7 +1,3 @@
-import 'dart:io';
-
-import 'package:path_provider/path_provider.dart';
-
 import '../core/media_source.dart';
 import '../core/protocol.dart';
 import '../core/remux.dart';
@@ -10,6 +6,7 @@ import '../core/session_mode.dart';
 import '../net/media_http_handler.dart';
 import '../net/remux_http_handler.dart';
 import '../net/web_client_handler.dart';
+import '../platform/temp_dir.dart';
 import 'mode_handler.dart';
 
 /// Mode 4 — Stream vers navigateur.
@@ -59,13 +56,7 @@ class BrowserMode extends ModeHandler {
       mediaId: id,
       media: ctx.media,
       ffmpeg: ctx.ffmpeg(),
-      tempDir: () async {
-        try {
-          return await getTemporaryDirectory();
-        } catch (_) {
-          return Directory.systemTemp; // tests, plateforme sans plugin
-        }
-      },
+      tempDir: appTempDir,
     );
     final web = WebClientHandler(token: server.token, loadAsset: ctx.loadAsset);
     server

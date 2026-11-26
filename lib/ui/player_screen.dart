@@ -8,8 +8,10 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../net/session/sync_session.dart';
 import '../core/session_mode.dart';
 import '../core/audio_gain.dart';
+import '../core/subtitles.dart';
 import '../modes/audio/audio_latency_control.dart';
 import '../platform/settings_store.dart';
+import '../platform/subtitle_picker.dart';
 import '../net/session/guest_session.dart';
 import '../player/media_kit_engine.dart';
 import '../player/playback_engine.dart';
@@ -170,6 +172,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
+  void _openSubtitleSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _SubtitleSheet(session: _session),
+    );
+  }
+
   void _openSoundSheet() {
     final e = _engine as MediaKitEngine;
     showModalBottomSheet<void>(
@@ -296,6 +306,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     if (_video != null)
                       IconButton(
                         color: Colors.white,
+                        tooltip: 'Sous-titres',
+                        icon: Icon(
+                          _session.subtitle.isOff
+                              ? Icons.subtitles_off_outlined
+                              : Icons.subtitles,
+                        ),
+                        onPressed: _openSubtitleSheet,
+                      ),
+                    if (_video != null)
+                      IconButton(
+                        color: Colors.white,
                         tooltip: _fullscreen
                             ? 'Quitter le plein écran'
                             : 'Passer en plein écran',
@@ -326,6 +347,148 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       ),
     ];
+  }
+}
+
+/// Choix des sous-titres : pistes intégrées, fichier externe, désactivés.
+/// Chez l'hôte, le choix est transmis à l'invité (app ou navigateur).
+class _SubtitleSheet extends StatefulWidget {
+  const _SubtitleSheet({required this.session});
+
+  final SyncSession session;
+
+  @override
+  State<_SubtitleSheet> createState() => _SubtitleSheetState();
+}
+
+class _SubtitleSheetState extends State<_SubtitleSheet> {
+  late final Future<List<SubtitleSelection>> _tracks = widget.session
+      .embeddedSubtitles();
+  String? _error;
+  bool _loading = false;
+
+  SyncSession get _s => widget.session;
+
+  Future<void> _select(SubtitleSelection sel, {String? text}) async {
+    await _s.selectSubtitle(sel, text: text);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _pickFile() async {
+    setState(() {
+      _error = null;
+      _loading = true;
+    });
+    try {
+      final f = await pickSubtitleFile();
+      if (f != null) {
+        await _select(SubtitleSelection.external(f.name), text: f.text);
+        return;
+      }
+    } on FormatException catch (e) {
+      _error = e.message;
+    } catch (e) {
+      _error = 'Lecture impossible : $e';
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = _s.subtitle;
+    Widget option(SubtitleSelection sel, {bool enabled = true, String? sub}) =>
+        ListTile(
+          enabled: enabled,
+          leading: Icon(
+            sel == current
+                ? Icons.radio_button_checked
+                : Icons.radio_button_unchecked,
+          ),
+          title: Text(sel.label),
+          subtitle: sub == null ? null : Text(sub),
+          onTap: enabled && sel != current ? () => _select(sel) : null,
+        );
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Text(
+                'Sous-titres',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            if (_s.isHost)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'La piste choisie ici s\'affiche aussi chez l\'invité.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            option(const SubtitleSelection.off()),
+            FutureBuilder<List<SubtitleSelection>>(
+              future: _tracks,
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const ListTile(
+                    leading: SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    title: Text('Recherche des pistes…'),
+                  );
+                }
+                if (snap.data!.isEmpty) {
+                  return const ListTile(
+                    enabled: false,
+                    title: Text('Aucune piste intégrée'),
+                  );
+                }
+                return Column(
+                  children: [
+                    for (final t in snap.data!)
+                      option(
+                        t,
+                        enabled: !t.isBitmap,
+                        sub: t.isBitmap
+                            ? 'Sous-titres image (PGS/VobSub) : non pris en '
+                                  'charge'
+                            : t.codec,
+                      ),
+                  ],
+                );
+              },
+            ),
+            if (current.kind == SubtitleKind.external) option(current),
+            ListTile(
+              leading: _loading
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.file_open),
+              title: const Text('Charger un fichier (.srt, .ass, .vtt)…'),
+              subtitle: _error == null
+                  ? null
+                  : Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+              onTap: _loading ? null : _pickFile,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

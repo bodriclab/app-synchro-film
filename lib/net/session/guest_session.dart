@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import '../../core/clock_sync.dart';
 import '../../core/constants.dart';
@@ -6,6 +8,7 @@ import '../../core/file_fingerprint.dart';
 import '../../core/media_source.dart';
 import '../../core/monotonic_clock.dart';
 import '../../core/protocol.dart';
+import '../../core/subtitles.dart';
 import '../../core/session_endpoint.dart';
 import '../../modes/mode_handler.dart';
 import '../../platform/media_access.dart';
@@ -171,8 +174,50 @@ class GuestSession extends SyncSession {
           _hostHello.completeError(StateError(msg.message));
         }
         update(status: SessionStatus.error, error: msg.message);
+      case SubsMsg():
+        _onSubs(msg);
       case PingMsg() || CmdMsg():
         break; // non attendus côté invité
+    }
+  }
+
+  int _subsRev = -1;
+
+  /// Sous-titres choisis par l'hôte : même piste intégrée (même fichier) ou
+  /// fichier externe téléchargé chez l'hôte. L'invité peut ensuite changer
+  /// localement ; le prochain choix de l'hôte s'appliquera de nouveau.
+  Future<void> _onSubs(SubsMsg msg) async {
+    _subsRev = msg.rev;
+    String? text;
+    if (msg.selection.kind == SubtitleKind.external) {
+      try {
+        text = await fetchHostSubtitleText();
+      } catch (_) {
+        return; // hôte injoignable : on garde l'affichage actuel
+      }
+      if (_subsRev != msg.rev) return; // un choix plus récent est arrivé
+    }
+    await applySubtitle(msg.selection, text: text);
+  }
+
+  /// Télécharge le fichier de sous-titres externe de l'hôte.
+  Future<String> fetchHostSubtitleText() async {
+    final uri = Uri(
+      scheme: 'http',
+      host: endpoint.host,
+      port: endpoint.port,
+      path: '/subs/file',
+      queryParameters: {'token': endpoint.token},
+    );
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+    try {
+      final res = await (await client.getUrl(uri)).close();
+      if (res.statusCode != 200) {
+        throw HttpException('HTTP ${res.statusCode}', uri: uri);
+      }
+      return await utf8.decodeStream(res);
+    } finally {
+      client.close();
     }
   }
 

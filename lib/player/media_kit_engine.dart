@@ -1,7 +1,9 @@
 import 'package:media_kit/media_kit.dart';
 
 import '../core/audio_gain.dart';
+import '../core/subtitles.dart';
 import 'playback_engine.dart';
+import 'subtitle_engine.dart';
 
 /// Filtre mpv du renfort des dialogues (compression + gain de compensation).
 const String kDialogBoostMpvFilter =
@@ -10,7 +12,7 @@ const String kDialogBoostMpvFilter =
 
 /// Implémentation de [PlaybackEngine] sur media_kit (libmpv) :
 /// quasi tous formats, décodage matériel activé par défaut.
-class MediaKitEngine implements PlaybackEngine {
+class MediaKitEngine implements PlaybackEngine, SubtitleEngine {
   MediaKitEngine()
     : player = Player(
         configuration: const PlayerConfiguration(
@@ -24,7 +26,87 @@ class MediaKitEngine implements PlaybackEngine {
   final Player player;
 
   @override
-  Future<void> open(String source) => player.open(Media(source), play: false);
+  Future<void> open(String source) async {
+    final p = player.platform;
+    // Pas de chargement automatique d'un .srt voisin : la liste des pistes
+    // intégrées reste identique chez l'hôte et l'invité.
+    if (p is NativePlayer) await p.setProperty('sub-auto', 'no');
+    await player.open(Media(source), play: false);
+  }
+
+  @override
+  Future<List<SubtitleSelection>> embeddedSubtitles() async {
+    final p = player.platform;
+    if (p is! NativePlayer) return const [];
+    // Les pistes arrivent après l'ouverture : on patiente un peu.
+    for (var attempt = 0; attempt < 20; attempt++) {
+      final list = await _readEmbedded(p);
+      if (list != null) return list.map((e) => e.$2).toList();
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+    return const [];
+  }
+
+  /// (id mpv, sélection) des pistes intégrées ; null si pas encore chargé.
+  Future<List<(String, SubtitleSelection)>?> _readEmbedded(
+    NativePlayer p,
+  ) async {
+    final count = int.tryParse(await p.getProperty('track-list/count')) ?? 0;
+    if (count == 0) return null;
+    final out = <(String, SubtitleSelection)>[];
+    for (var i = 0; i < count; i++) {
+      Future<String> prop(String name) async {
+        try {
+          return await p.getProperty('track-list/$i/$name');
+        } catch (_) {
+          return '';
+        }
+      }
+
+      if (await prop('type') != 'sub') continue;
+      if (await prop('external') == 'yes') continue;
+      final title = await prop('title');
+      final lang = await prop('lang');
+      final codec = await prop('codec');
+      out.add((
+        await prop('id'),
+        SubtitleSelection.embedded(
+          out.length,
+          title: title.isEmpty ? null : title,
+          language: lang.isEmpty ? null : lang,
+          codec: codec.isEmpty ? null : codec,
+        ),
+      ));
+    }
+    return out;
+  }
+
+  @override
+  Future<void> showSubtitle(SubtitleSelection selection, {String? text}) async {
+    switch (selection.kind) {
+      case SubtitleKind.off:
+        await player.setSubtitleTrack(SubtitleTrack.no());
+      case SubtitleKind.external:
+        if (text == null) return;
+        await player.setSubtitleTrack(
+          SubtitleTrack.data(text, title: selection.name),
+        );
+      case SubtitleKind.embedded:
+        final p = player.platform;
+        if (p is! NativePlayer) return;
+        for (var attempt = 0; attempt < 20; attempt++) {
+          final list = await _readEmbedded(p);
+          if (list != null) {
+            if (selection.index! < list.length) {
+              final id = list[selection.index!].$1;
+              await player.setSubtitleTrack(SubtitleTrack(id, null, null));
+            }
+            return;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 150));
+        }
+    }
+  }
 
   @override
   Future<void> play() => player.play();

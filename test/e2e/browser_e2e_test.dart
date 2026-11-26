@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:app_synchro_film/core/media_source.dart';
 import 'package:app_synchro_film/core/monotonic_clock.dart';
+import 'package:app_synchro_film/core/subtitles.dart';
 import 'package:app_synchro_film/modes/browser_mode.dart';
 import 'package:app_synchro_film/net/session/host_session.dart';
 import 'package:app_synchro_film/net/session/sync_session.dart';
@@ -158,6 +159,81 @@ void main() {
     'Safari iOS simulé : MP4 (Opus) forcé en remux Range + AAC, synchronisé',
     () async {
       await scenario('ios.mp4', 'libopus', true, safari: true);
+    },
+    skip: skip,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'sous-titres de l\'hôte affichés dans la page (<track> WebVTT, décalé '
+    'après un saut en remux)',
+    () async {
+      final film = await makeTestFilm(dir, name: 'st.mkv', seconds: 60);
+      final srt = File('${dir.path}/st.srt')
+        ..writeAsStringSync(
+          '1\n00:00:02,000 --> 00:00:04,000\nDébut\n\n'
+          '2\n00:00:41,000 --> 00:00:43,000\nVers la fin\n',
+        );
+      final withSubs = '${dir.path}/st-subs.mkv';
+      final r = await Process.run('ffmpeg', [
+        '-v', 'error', '-y', '-i', film, '-i', srt.path, //
+        '-map', '0', '-map', '1', '-c', 'copy', '-c:s', 'srt', withSubs,
+      ]);
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      final clock = MonotonicClock();
+      final host = HostSession(
+        engine: FakeEngine(now: clock.nowMs),
+        mode: const BrowserMode(),
+        media: MediaRef.file(withSubs),
+        preferredPort: 0,
+        clock: clock,
+        ffmpeg: () => ProcessFfmpegRunner(),
+        loadAsset: (n) => File('web_client/$n').readAsString(),
+      );
+      await host.start();
+      await host.seekTo(40000);
+      final page = await open(host.endpointFor('127.0.0.1').toUri().toString());
+      try {
+        Future<List<dynamic>> cues(bool Function(List<dynamic>) ok) async {
+          for (var i = 0; i < 80; i++) {
+            final c = await page.eval(
+              'window.synchroFilm ? '
+              'JSON.stringify(synchroFilm.subtitleCues()) : "null"',
+            );
+            final list = jsonDecode(c as String) as List<dynamic>?;
+            if (list != null && ok(list)) return list;
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+          }
+          fail('cues non chargés');
+        }
+
+        await host.selectSubtitle(
+          const SubtitleSelection.embedded(0, codec: 'subrip'),
+        );
+        // Page ouverte alors que l'hôte est à 40 s : flux réemballé depuis
+        // l'image clé de 40 s → le sous-titre de 41 s tombe à 1 s du temps
+        // vidéo, celui de 2 s est supprimé.
+        final off = await () async {
+          for (var i = 0; i < 80; i++) {
+            final o =
+                await page.eval(
+                  'window.synchroFilm ? synchroFilm.remuxOffset : 0',
+                ) as num? ??
+                0;
+            if (o > 0) return o;
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+          }
+          fail('pas de remux');
+        }();
+        expect(off, closeTo(40000, 100));
+        final b = await cues((l) => l.length == 1);
+        expect(b.first['text'], 'Vers la fin');
+        expect(b.first['start'], closeTo(41 - off / 1000, 0.01));
+        expect(b.first['mode'], 'showing');
+      } finally {
+        await page.close();
+        await host.close();
+      }
     },
     skip: skip,
     timeout: const Timeout(Duration(minutes: 2)),

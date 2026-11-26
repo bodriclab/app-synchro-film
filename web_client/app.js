@@ -85,6 +85,7 @@
           if (!state || m.state.seq >= state.seq) state = m.state;
           correct();
           break;
+        case 'subs': subs = m; applySubs(); break;
         case 'error': showMessage('Hôte : ' + (m.message || m.code)); break;
       }
     };
@@ -107,6 +108,31 @@
     else video.src = m.media + q();
   }
 
+  // ---------- Sous-titres choisis par l'hôte : WebVTT dans <track> ----------
+  // En flux réemballé, le temps 0 de la vidéo = remuxOffset dans le film :
+  // l'hôte décale les minutages (shift) à chaque rechargement.
+  const BITMAP_SUBS = ['hdmv_pgs_subtitle', 'pgssub', 'dvd_subtitle', 'dvdsub', 'dvb_subtitle', 'dvbsub', 'xsub'];
+  let subs = null;
+  function applySubs() {
+    video.querySelectorAll('track').forEach((t) => { t.track.mode = 'disabled'; t.remove(); });
+    if (!subs || !subs.selection || subs.selection.kind === 'off') return;
+    const sel = subs.selection;
+    if (sel.codec && BITMAP_SUBS.indexOf(sel.codec) >= 0) {
+      showMessage('Sous-titres image (PGS/VobSub) non pris en charge par le navigateur.', 6000);
+      return;
+    }
+    const t = document.createElement('track');
+    t.kind = 'subtitles';
+    t.label = sel.title || sel.name || 'Sous-titres';
+    t.default = true;
+    const shift = useRemux ? -remuxOffset : 0;
+    t.src = '/subs/track.vtt' + q('&rev=' + subs.rev + '&shift=' + Math.round(shift));
+    t.addEventListener('load', () => { t.track.mode = 'showing'; });
+    t.addEventListener('error', () => showMessage('Sous-titres indisponibles.', 5000));
+    video.appendChild(t);
+    t.track.mode = 'showing';
+  }
+
   // ---------- Remux (MKV…) : flux MP4 fragmenté non « seekable » ----------
   async function loadRemux(posMs) {
     loading = true;
@@ -127,7 +153,9 @@
         if (!state || !state.playing || info.offsetMs >= expected() + 1200) break;
         start += 2000;
       }
+      const shiftChanged = remuxOffset !== info.offsetMs;
       remuxOffset = info.offsetMs;
+      if (subs && shiftChanged) applySubs();
       video.src = '/remux/' + mediaId() + '.mp4' + q('&start=' + start + remuxQ);
       remuxLoadedAt = now();
       corr.lastSeekAt = now();
@@ -301,7 +329,12 @@
 
   // Exposé pour les tests automatisés (Chrome headless).
   window.synchroFilm = { clock, corr, trace, get state() { return state; }, get drift() { return corr.drift; },
-    get safari() { return SAFARI; }, get useRemux() { return useRemux; }, get remuxOffset() { return remuxOffset; }, video, cmd };
+    get safari() { return SAFARI; }, get subs() { return subs; },
+    subtitleCues() {
+      const t = video.querySelector('track');
+      if (!t || !t.track.cues) return null;
+      return Array.from(t.track.cues).map((c) => ({ start: c.startTime, end: c.endTime, text: c.text, mode: t.track.mode }));
+    }, get useRemux() { return useRemux; }, get remuxOffset() { return remuxOffset; }, video, cmd };
 
   setInterval(() => { correct(); render(); }, 250);
   connect();

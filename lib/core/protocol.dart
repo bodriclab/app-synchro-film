@@ -4,6 +4,7 @@ import 'constants.dart';
 import 'file_fingerprint.dart';
 import 'playback_state.dart';
 import 'session_mode.dart';
+import 'subtitles.dart';
 
 /// Erreur de décodage d'un message du protocole.
 class ProtocolException implements Exception {
@@ -58,6 +59,13 @@ sealed class SyncMessage {
           );
         case CmdMsg.kType:
           return CmdMsg.fromJson(data);
+        case SubsMsg.kType:
+          return SubsMsg(
+            SubtitleSelection.fromJson(
+              data['selection'] as Map<String, dynamic>,
+            ),
+            rev: (data['rev'] as num?)?.toInt() ?? 0,
+          );
         case ErrorMsg.kType:
           return ErrorMsg(
             data['code'] as String,
@@ -230,4 +238,24 @@ class ErrorMsg extends SyncMessage {
   String get type => kType;
   @override
   Map<String, dynamic> toJson() => {'code': code, 'message': message};
+}
+
+/// Hôte → invités : sous-titres choisis par l'hôte. Pour un fichier externe,
+/// le texte est servi par l'hôte : `/subs/file?token=…&rev=…` (brut, pour
+/// l'app) et `/subs/track.vtt?token=…&rev=…&shift=ms` (WebVTT, navigateur).
+class SubsMsg extends SyncMessage {
+  const SubsMsg(this.selection, {this.rev = 0});
+  static const kType = 'subs';
+  final SubtitleSelection selection;
+
+  /// Révision : change à chaque nouveau choix (cache des pages).
+  final int rev;
+
+  @override
+  String get type => kType;
+  @override
+  Map<String, dynamic> toJson() => {
+    'selection': selection.toJson(),
+    'rev': rev,
+  };
 }
