@@ -9,6 +9,20 @@
   const video = $('video');
   const now = () => performance.now();
 
+  // Safari (macOS) et tout navigateur iOS/iPadOS (moteur WebKit imposé) :
+  // MKV illisible, HEVC seulement étiqueté hvc1, audio AAC/MP3, Range exigé.
+  // On force donc le remux, en demandant au serveur le mode « safari ».
+  function isSafariLike(ua, platform, maxTouchPoints) {
+    const u = (ua || '').toLowerCase(), p = (platform || '').toLowerCase();
+    const iOS = /iphone|ipad|ipod/.test(p) || /iphone|ipad|ipod/.test(u);
+    const iPadOS = p === 'macintel' && maxTouchPoints > 1;
+    const macSafari = u.includes('macintosh') && u.includes('safari') &&
+      !/chrome|chromium|crios|fxios|edg|opr|opera|samsungbrowser|firefox/.test(u);
+    return iOS || iPadOS || macSafari;
+  }
+  const SAFARI = isSafariLike(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+  const remuxQ = SAFARI ? '&safari=1' : '';
+
   // ---------- Horloge partagée (hôte = local + offset) ----------
   const clock = SFClock.create(); // clock.js (commun aux modes 4 et 5)
   const hostNow = clock.hostNow;
@@ -88,7 +102,7 @@
     if (m.duration) durationMs = m.duration;
     if (m.mediaName) document.title = m.mediaName + ' — App Synchro Film';
     if (!first) return;
-    useRemux = !!m.remux;
+    useRemux = !!m.remux || SAFARI;
     if (useRemux) loadRemux(expected());
     else video.src = m.media + q();
   }
@@ -105,7 +119,7 @@
       // qui le relancerait).
       let info = null;
       for (let i = 0; i < 6; i++) {
-        const r = await fetch('/remux/' + mediaId() + '/info' + q('&start=' + start));
+        const r = await fetch('/remux/' + mediaId() + '/info' + q('&start=' + start + remuxQ));
         if (!r.ok) throw new Error(await r.text());
         const next = await r.json();
         if (info && next.offsetMs <= info.offsetMs) break; // fin du film
@@ -114,7 +128,7 @@
         start += 2000;
       }
       remuxOffset = info.offsetMs;
-      video.src = '/remux/' + mediaId() + '.mp4' + q('&start=' + start);
+      video.src = '/remux/' + mediaId() + '.mp4' + q('&start=' + start + remuxQ);
       remuxLoadedAt = now();
       corr.lastSeekAt = now();
       corr.correcting = false;
@@ -287,7 +301,7 @@
 
   // Exposé pour les tests automatisés (Chrome headless).
   window.synchroFilm = { clock, corr, trace, get state() { return state; }, get drift() { return corr.drift; },
-    get useRemux() { return useRemux; }, get remuxOffset() { return remuxOffset; }, video, cmd };
+    get safari() { return SAFARI; }, get useRemux() { return useRemux; }, get remuxOffset() { return remuxOffset; }, video, cmd };
 
   setInterval(() => { correct(); render(); }, 250);
   connect();

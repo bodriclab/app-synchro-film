@@ -20,6 +20,11 @@ void main() {
   final skip = chrome == null || !hasFfmpeg ? 'Chrome ou ffmpeg absent' : null;
   late Directory dir;
   HeadlessChrome? browser;
+  HeadlessChrome? iphone;
+  const iphoneUa =
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) '
+      'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 '
+      'Mobile/15E148 Safari/604.1';
 
   setUpAll(() async {
     if (skip != null) return;
@@ -29,12 +34,18 @@ void main() {
 
   tearDownAll(() async {
     await browser?.close();
+    await iphone?.close();
     if (skip == null) await dir.delete(recursive: true).catchError((_) => dir);
   });
 
   Future<ChromePage> open(String url) => browser!.open(url);
 
-  Future<void> scenario(String filmName, String audioCodec, bool remux) async {
+  Future<void> scenario(
+    String filmName,
+    String audioCodec,
+    bool remux, {
+    bool safari = false,
+  }) async {
     final film = await makeTestFilm(
       dir,
       name: filmName,
@@ -52,7 +63,13 @@ void main() {
       loadAsset: (n) => File('web_client/$n').readAsString(),
     );
     await host.start();
-    final page = await open(host.endpointFor('127.0.0.1').toUri().toString());
+    final url = host.endpointFor('127.0.0.1').toUri().toString();
+    final page = safari
+        ? await (iphone ??= await HeadlessChrome.start(
+            chrome!,
+            userAgent: iphoneUa,
+          )).open(url)
+        : await open(url);
     try {
       final sw = Stopwatch()..start();
       while (host.status != SessionStatus.connected) {
@@ -63,6 +80,7 @@ void main() {
         await page.eval(
           'JSON.stringify({drift: synchroFilm.drift, paused: synchroFilm.video.paused,'
           ' t: synchroFilm.video.currentTime, remux: synchroFilm.useRemux,'
+          ' safari: synchroFilm.safari, src: synchroFilm.video.currentSrc,'
           ' err: synchroFilm.video.error && synchroFilm.video.error.code,'
           ' lead: synchroFilm.corr.seekLead, trace: synchroFilm.trace.join(" | "),'
           ' samples: synchroFilm.clock.samples.length})',
@@ -95,6 +113,8 @@ void main() {
       await host.play();
       final a = await settle('lecture');
       expect(a['remux'], remux);
+      expect(a['safari'], safari);
+      if (safari) expect(a['src'] as String, contains('safari=1'));
       expect(a['err'], isNull);
 
       await host.seekTo(30000);
@@ -129,6 +149,15 @@ void main() {
     'MKV (AC3) réemballé à la volée, synchronisé',
     () async {
       await scenario('film.mkv', 'ac3', true);
+    },
+    skip: skip,
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'Safari iOS simulé : MP4 (Opus) forcé en remux Range + AAC, synchronisé',
+    () async {
+      await scenario('ios.mp4', 'libopus', true, safari: true);
     },
     skip: skip,
     timeout: const Timeout(Duration(minutes: 2)),

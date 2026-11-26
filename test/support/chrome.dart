@@ -49,7 +49,10 @@ class HeadlessChrome {
   final Directory _dir;
   final int _port;
 
-  static Future<HeadlessChrome> start(String chrome) async {
+  static Future<HeadlessChrome> start(
+    String chrome, {
+    String? userAgent,
+  }) async {
     final dir = await Directory.systemTemp.createTemp('chrome');
     final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = s.port;
@@ -61,6 +64,7 @@ class HeadlessChrome {
       '--autoplay-policy=no-user-gesture-required',
       '--remote-debugging-port=$port',
       '--user-data-dir=${dir.path}/profile',
+      if (userAgent != null) '--user-agent=$userAgent',
       'about:blank',
     ]);
     p.stdout.drain<void>();

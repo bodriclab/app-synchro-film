@@ -15,6 +15,8 @@ Future<String> makeTestFilm(
   String name = 'film.mkv',
   int seconds = 40,
   String audioCodec = 'aac',
+  String videoCodec = 'libx264',
+  int channels = 2,
 }) async {
   final path = '${dir.path}/$name';
   final r = await Process.run('ffmpeg', [
@@ -33,7 +35,7 @@ Future<String> makeTestFilm(
     '-t',
     '$seconds',
     '-c:v',
-    'libx264',
+    videoCodec,
     '-preset',
     'ultrafast',
     '-g',
@@ -42,6 +44,9 @@ Future<String> makeTestFilm(
     '100',
     '-sc_threshold',
     '0',
+    if (videoCodec == 'libx265') ...['-x265-params', 'log-level=error'],
+    '-ac',
+    '$channels',
     '-c:a',
     audioCodec,
     '-shortest',
