@@ -147,6 +147,39 @@ List<String> remuxArgs(
   '{out}',
 ];
 
+/// Copie téléchargeable lisible par Safari iOS (mode 4, `/download`) :
+/// vidéo copiée sans réencodage (étiquette `hvc1` imposée pour le HEVC),
+/// audio converti en AAC stéréo (dialogues préservés, voir
+/// [kDownmixFilter]), index `moov` en tête (`+faststart`) pour une lecture
+/// immédiate. Le film sans piste audio reste accepté (`0:a:0?`).
+List<String> iosCopyArgs(String input, String output, {bool hevc = false}) => [
+  '-i',
+  input,
+  '-map',
+  '0:v:0',
+  '-map',
+  '0:a:0?',
+  '-sn',
+  '-dn',
+  '-c:v',
+  'copy',
+  if (hevc) ...['-tag:v', 'hvc1'],
+  '-af',
+  kDownmixFilter,
+  '-c:a',
+  'aac',
+  '-b:a',
+  '192k',
+  '-ac',
+  '2',
+  '-movflags',
+  '+faststart',
+  '-f',
+  'mp4',
+  '-y',
+  output,
+];
+
 /// Décodage audio du mode 3 : PCM s16le 48 kHz stéréo à partir de [startMs].
 List<String> pcmArgs(String input, int startMs) => [
   if (startMs > 0) ...['-ss', _sec(startMs)],

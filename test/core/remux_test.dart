@@ -77,4 +77,71 @@ void main() {
       containsAllInOrder(['-ar', '48000', '-f', 's16le']),
     );
   });
+
+  group('iosCopyArgs', () {
+    const input = '/films/a.mkv';
+    const output = '/tmp/a_ios.mp4';
+
+    test('sans hevc : vérifie la séquence attendue et l\'absence de hvc1', () {
+      final args = iosCopyArgs(input, output, hevc: false);
+
+      // '-c:v' suivi de 'copy'
+      final cVIndex = args.indexOf('-c:v');
+      expect(cVIndex, isNot(-1));
+      expect(args[cVIndex + 1], equals('copy'));
+
+      // aucune occurrence de 'hvc1'
+      expect(args.contains('hvc1'), isFalse);
+
+      // '-c:a' suivi de 'aac'
+      final cAIndex = args.indexOf('-c:a');
+      expect(cAIndex, isNot(-1));
+      expect(args[cAIndex + 1], equals('aac'));
+
+      // '-b:a' suivi de '192k'
+      final bAIndex = args.indexOf('-b:a');
+      expect(bAIndex, isNot(-1));
+      expect(args[bAIndex + 1], equals('192k'));
+
+      // '-ac' suivi de '2'
+      final acIndex = args.indexOf('-ac');
+      expect(acIndex, isNot(-1));
+      expect(args[acIndex + 1], equals('2'));
+
+      // '-movflags' suivi de '+faststart'
+      final movFlagsIndex = args.indexOf('-movflags');
+      expect(movFlagsIndex, isNot(-1));
+      expect(args[movFlagsIndex + 1], equals('+faststart'));
+
+      // '-map' suivi de '0:v:0'
+      final mapIndex = args.indexOf('-map');
+      expect(mapIndex, isNot(-1));
+      expect(args[mapIndex + 1], equals('0:v:0'));
+
+      // le dernier argument est le chemin de sortie
+      expect(args.last, equals(output));
+    });
+
+    test('avec hevc : -tag:v suivi de hvc1 et placé après -c:v', () {
+      final args = iosCopyArgs(input, output, hevc: true);
+
+      // '-tag:v' suivi de 'hvc1'
+      final tagVIndex = args.indexOf('-tag:v');
+      expect(tagVIndex, isNot(-1));
+      expect(args[tagVIndex + 1], equals('hvc1'));
+
+      // '-c:v' doit apparaître avant '-tag:v'
+      final cVIndex = args.indexOf('-c:v');
+      expect(cVIndex, isNot(-1));
+      expect(cVIndex < tagVIndex, isTrue);
+    });
+
+    test('l\'entrée est correctement placée après -i', () {
+      final args = iosCopyArgs(input, output, hevc: false);
+
+      final iIndex = args.indexOf('-i');
+      expect(iIndex, isNot(-1));
+      expect(args[iIndex + 1], equals(input));
+    });
+  });
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:ffmpeg_kit_flutter_new_min/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new_min/ffmpeg_kit_config.dart';
+import 'package:ffmpeg_kit_flutter_new_min/return_code.dart';
 
 /// Une exécution FFmpeg dont la sortie est lue en flux.
 class FfmpegJob {
@@ -46,6 +47,10 @@ abstract class FfmpegRunner {
     return b.takeBytes();
   }
 
+  /// Lance FFmpeg avec une sortie fichier déjà présente dans [args].
+  Future<FfmpegFileJob> startFile(List<String> args) =>
+      throw UnsupportedError('Sortie fichier non prise en charge');
+
   /// Ouvre la socket d'écoute, remplace `{out}`, lance [launch] et attend
   /// la connexion de FFmpeg (ou son échec).
   static Future<FfmpegJob> startWithSocket(
@@ -80,6 +85,23 @@ abstract class FfmpegRunner {
       socket.destroy();
       await proc.kill();
     });
+  }
+}
+
+/// FFmpeg qui écrit lui-même un fichier (sortie seekable, ex. `+faststart`).
+class FfmpegFileJob {
+  FfmpegFileJob(this.done, this._cancel);
+
+  /// Vrai si FFmpeg s'est terminé avec succès.
+  final Future<bool> done;
+  final Future<void> Function() _cancel;
+  bool _cancelled = false;
+  bool get isCancelled => _cancelled;
+
+  Future<void> cancel() async {
+    if (_cancelled) return;
+    _cancelled = true;
+    await _cancel();
   }
 }
 
@@ -123,6 +145,22 @@ class KitFfmpegRunner extends FfmpegRunner {
       );
     },
   );
+
+  @override
+  Future<FfmpegFileJob> startFile(List<String> args) async {
+    final done = Completer<bool>();
+    final session = await FFmpegKit.executeWithArgumentsAsync(
+      ['-hide_banner', '-loglevel', 'error', ...args],
+      (s) async {
+        final rc = await s.getReturnCode();
+        if (!done.isCompleted) done.complete(ReturnCode.isSuccess(rc));
+      },
+    );
+    final id = session.getSessionId();
+    return FfmpegFileJob(done.future, () async {
+      if (!done.isCompleted) await FFmpegKit.cancel(id);
+    });
+  }
 }
 
 /// Exécutable `ffmpeg` du système (tests sur la box, Linux).
@@ -153,6 +191,23 @@ class ProcessFfmpegRunner extends FfmpegRunner {
       );
     },
   );
+
+  @override
+  Future<FfmpegFileJob> startFile(List<String> args) async {
+    final p = await Process.start(executable, [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-nostdin',
+      ...args,
+    ]);
+    p.stdout.drain<void>();
+    p.stderr.drain<void>();
+    return FfmpegFileJob(p.exitCode.then((c) => c == 0), () async {
+      p.kill();
+      await p.exitCode;
+    });
+  }
 }
 
 FfmpegRunner? _default;
