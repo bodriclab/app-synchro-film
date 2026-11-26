@@ -15,6 +15,7 @@ class MediaHttpHandler {
     required this.media,
     required this.opener,
     this.chunkSize = 256 * 1024,
+    this.onSent,
   });
 
   final String token;
@@ -22,6 +23,9 @@ class MediaHttpHandler {
   final MediaRef media;
   final MediaOpener opener;
   final int chunkSize;
+
+  /// Appelé à chaque bloc envoyé (progression côté expéditeur).
+  final void Function(int bytes)? onSent;
 
   String get path => '/media/$mediaId';
 
@@ -51,6 +55,9 @@ class MediaHttpHandler {
         ..set(HttpHeaders.acceptRangesHeader, 'bytes')
         ..contentType = ContentType.parse(mimeTypeFor(media.name))
         ..set(HttpHeaders.cacheControlHeader, 'no-store');
+      if (req.uri.queryParameters['download'] == '1') {
+        res.headers.set('content-disposition', contentDisposition(media.name));
+      }
       final range = parseRange(
         req.headers.value(HttpHeaders.rangeHeader),
         size,
@@ -92,8 +99,18 @@ class MediaHttpHandler {
       final bytes = await source.read(pos, n);
       if (bytes.isEmpty) break;
       yield bytes;
+      onSent?.call(bytes.length);
       pos += bytes.length;
     }
+  }
+
+  /// `attachment` avec nom ASCII de repli et nom UTF-8 (RFC 6266 / 5987).
+  static String contentDisposition(String name) {
+    final ascii = name
+        .replaceAll(RegExp(r'[^\x20-\x7e]'), '_')
+        .replaceAll(RegExp(r'["\\]'), '_');
+    final utf = Uri.encodeComponent(name).replaceAll("'", '%27');
+    return 'attachment; filename="$ascii"; filename*=UTF-8\'\'$utf';
   }
 
   static Future<void> _status(HttpResponse res, int code) async {

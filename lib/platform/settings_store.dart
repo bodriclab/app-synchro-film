@@ -36,6 +36,9 @@ class SettingsStore {
   Future<bool> getBool(String key, bool fallback) async =>
       (await _load())[key] as bool? ?? fallback;
 
+  Future<String?> getString(String key) async =>
+      (await _load())[key] as String?;
+
   Future<void> set(String key, Object value) async {
     final map = await _load();
     map[key] = value;

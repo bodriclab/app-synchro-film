@@ -16,6 +16,7 @@ import '../net/session/guest_session.dart';
 import '../player/media_kit_engine.dart';
 import '../player/playback_engine.dart';
 import '../player/sync_controller.dart';
+import 'transfer_screen.dart';
 import 'ui_utils.dart';
 
 /// Lecture synchronisée. L'écran possède la session et la ferme en sortant.
@@ -302,6 +303,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         tooltip: 'Volume et dialogues',
                         icon: const Icon(Icons.tune),
                         onPressed: _openSoundSheet,
+                      ),
+                    if (_session case GuestSession(:final hostMediaUrl?))
+                      IconButton(
+                        color: Colors.white,
+                        tooltip: 'Télécharger le film sur cet appareil',
+                        icon: const Icon(Icons.download),
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ReceiveFileScreen(
+                              directUrl: hostMediaUrl,
+                              fileName:
+                                  (_session as GuestSession).hostMediaName ??
+                                  'film.mkv',
+                            ),
+                          ),
+                        ),
                       ),
                     if (_video != null)
                       IconButton(

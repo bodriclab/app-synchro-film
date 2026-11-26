@@ -9,6 +9,7 @@ import '../../core/media_source.dart';
 import '../../core/monotonic_clock.dart';
 import '../../core/protocol.dart';
 import '../../core/subtitles.dart';
+import '../../modes/stream_mode.dart';
 import '../../core/session_endpoint.dart';
 import '../../modes/mode_handler.dart';
 import '../../platform/media_access.dart';
@@ -62,6 +63,10 @@ class GuestSession extends SyncSession {
   Timer? _pingTimer;
   FileFingerprint? fingerprint;
   int? hostDurationMs;
+
+  /// Mode 2 : adresse HTTP du film de l'hôte (téléchargeable avec reprise).
+  Uri? hostMediaUrl;
+  String? hostMediaName;
   final Completer<HelloMsg> _hostHello = Completer<HelloMsg>();
   bool _mediaReady = false;
   GuestAttachment? _attachment;
@@ -100,6 +105,11 @@ class GuestSession extends SyncSession {
       );
       _ping();
       final hostHello = await _hostHello.future.timeout(helloTimeout);
+      hostMediaName = hostHello.mediaName;
+      final mp = hostHello.mediaPath;
+      if (mp != null && mp.startsWith('/media/')) {
+        hostMediaUrl = StreamMode.mediaUrl(endpoint, mp);
+      }
       final source = await mode.resolveGuestSource(
         endpoint: endpoint,
         hostHello: hostHello,

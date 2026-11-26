@@ -59,6 +59,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(::onCall)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bodriclab.synchrofilm/update")
             .setMethodCallHandler(::onUpdateCall)
+        DownloadChannel(applicationContext).register(flutterEngine.dartExecutor.binaryMessenger)
     }
 
     /**

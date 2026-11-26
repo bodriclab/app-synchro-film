@@ -103,6 +103,13 @@
     if (m.duration) durationMs = m.duration;
     if (m.mediaName) document.title = m.mediaName + ' — App Synchro Film';
     if (!first) return;
+    // Copie du film sur cet appareil (Wi-Fi local, reprise par Range).
+    const dl = $('download');
+    if (dl && m.media) {
+      dl.href = m.media + q('&download=1');
+      dl.setAttribute('download', m.mediaName || '');
+      dl.hidden = false;
+    }
     useRemux = !!m.remux || SAFARI;
     if (useRemux) loadRemux(expected());
     else video.src = m.media + q();

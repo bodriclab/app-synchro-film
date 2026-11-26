@@ -5,6 +5,7 @@ import '../modes/mode_registry.dart';
 import '../update/update_service.dart';
 import 'about_screen.dart';
 import 'host_screen.dart';
+import 'transfer_screen.dart';
 import 'join_screen.dart';
 import 'update_dialog.dart';
 
@@ -95,6 +96,34 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => JoinScreen(mode: _mode)),
               ),
+            ),
+            const SizedBox(height: 24),
+            Text('Copier le film', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.upload),
+                    label: const Text('Envoyer un film'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SendFileScreen()),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.download),
+                    label: const Text('Recevoir un film'),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ReceiveFileScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Text(
